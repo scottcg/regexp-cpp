@@ -1,4 +1,4 @@
- # Compiler and flags
+# Compiler and flags
 CXX = clang++
 CXXFLAGS = -I. -std=c++20 -Wall -Wextra -pedantic -Wno-unused-parameter -Wno-unused-const-variable
 CXXFLAGS +=  -DDEBUG -g
@@ -8,7 +8,7 @@ SRCS = main.cpp
 OBJS = $(SRCS:.cpp=.o)
 
 # Header files
-HEADERS = source.h ctext.h rcimpl.h
+HEADERS = $(wildcard *.h)
 
 # Executable name
 TARGET = main.bin
@@ -29,4 +29,4 @@ clean:
 	rm -f $(OBJS) $(TARGET)
 
 # Phony targets
-.PHONY: all clean
+.PHONY: all clean`

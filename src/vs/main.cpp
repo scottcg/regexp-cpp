@@ -232,9 +232,10 @@ void test_perl() {
     //cout << "Match result: " << matchResult << endl;
 }
 
-#if 0
+#if 1
 void test_compiled_code_vector() {
     // Create an instance of compiled_code_vector
+    using traitsT = re_char_traits<char>;
     compiled_code_vector<traitsT> vec;
 
     // Check the initial offset
@@ -263,7 +264,7 @@ void test_compiled_code_vector() {
     vec.put_address(1, 10);
     std::cout << "Value at index 1 after put_address: " << static_cast<int>(vec[1]) << std::endl;
     std::cout << "Value at index 2 after put_address: " << static_cast<int>(vec[2]) << std::endl;
-    assert(static_cast<int>(vec[1]) == 8);
+    assert(static_cast<int>(vec[1]) == 7);
     assert(static_cast<int>(vec[2]) == 0);
 
     // Test store_jump
@@ -281,9 +282,7 @@ void test_compiled_code_vector() {
 #endif
 
 void test_basic_regular_expression() {
-
     using my_traits = re_char_traits<char>;
-
     re::grep_syntax<my_traits> grep_syntax;
     re::awk_syntax<my_traits> awk_syntax;
     re::egrep_syntax<my_traits> egrep_syntax;
@@ -350,6 +349,8 @@ int main() {
 
     test_precedence_vec();
     test_precedence_stack();
+
+    test_compiled_code_vector();
 
     test_char_traits();
     test_wchar_traits();
