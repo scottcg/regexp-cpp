@@ -7,15 +7,6 @@
 
 using namespace re;
 
-class char_traits {
-public:
-    typedef char char_type;
-    typedef int int_type;
-
-    static size_t length(const char_type* s) {
-        return std::strlen(s);
-    }
-};
 
 class Test {
 public:
@@ -65,8 +56,8 @@ void testReferenceCount() {
 
 void testHasSubstring() {
     const auto testString = "Hello, World!";
-    re_ctext<char_traits> text(testString, -1);
-    char_traits::int_type lastch;
+    re_ctext<re_char_traits<char>> text(testString, -1);
+    re_char_traits<char>::int_type lastch;
     const bool result = text.has_substring(0, 5, lastch);
     std::cout << "Has substring result: " << (result ? "true" : "false") << std::endl;
     assert(result == true);
@@ -74,8 +65,8 @@ void testHasSubstring() {
 
 void testNoSubstring() {
     const auto testString = "Hello, World!";
-    re_ctext<char_traits> text(testString, -1);
-    char_traits::int_type lastch;
+    re_ctext<re_char_traits<char>> text(testString, -1);
+    re_char_traits<char>::int_type lastch;
     const bool result = text.has_substring(0, 3, lastch); // Check for "XYZ" in "Hello, World!"
     std::cout << "No substring result: " << (result ? "true" : "false") << std::endl;
     assert(result == false);
@@ -115,16 +106,92 @@ void test_wchar_traits() {
     assert(wicmp == 0);
 }
 
+void test_precedence_vec() {
+    // Create an instance of re_precedence_vec with default initialization
+    re_precedence_vec<NUM_LEVELS> vec;
+
+    // Check the initial values
+    std::cout << "Initial values: ";
+    for (int i = 0; i < NUM_LEVELS; ++i) {
+        std::cout << vec[i] << " ";
+        assert(vec[i] == 0);
+    }
+    std::cout << std::endl;
+
+    // Modify the values
+    for (int i = 0; i < NUM_LEVELS; ++i) {
+        vec[i] = i * 10;
+    }
+
+    // Check the modified values
+    std::cout << "Modified values: ";
+    for (int i = 0; i < NUM_LEVELS; ++i) {
+        std::cout << vec[i] << " ";
+        assert(vec[i] == i * 10);
+    }
+    std::cout << std::endl;
+}
+
+void test_precedence_stack() {
+    // Create an instance of re_precedence_stack
+    re_precedence_stack stack;
+
+    // Check the initial current precedence value
+    std::cout << "Initial current precedence: " << stack.current() << std::endl;
+    assert(stack.current() == 0);
+
+    // Check the initial start value
+    std::cout << "Initial start value: " << stack.start() << std::endl;
+    assert(stack.start() == 0);
+
+    // Modify the current precedence value
+    stack.current(2);
+    std::cout << "Modified current precedence: " << stack.current() << std::endl;
+    assert(stack.current() == 2);
+
+    // Modify the start value
+    stack.start(10);
+    std::cout << "Modified start value: " << stack.start() << std::endl;
+    assert(stack.start() == 10);
+
+    // Push a new element onto the stack
+    stack.push(re_precedence_element());
+    std::cout << "Pushed new element onto the stack." << std::endl;
+
+    // Check the current precedence value after push
+    std::cout << "Current precedence after push: " << stack.current() << std::endl;
+    assert(stack.current() == 2);
+
+    // Check the start value after push
+    std::cout << "Start value after push: " << stack.start() << std::endl;
+    assert(stack.start() == 0);
+
+    // Pop the element from the stack
+    stack.pop();
+    std::cout << "Popped element from the stack." << std::endl;
+
+    // Check the current precedence value after pop
+    std::cout << "Current precedence after pop: " << stack.current() << std::endl;
+    assert(stack.current() == 2);
+
+    // Check the start value after pop
+    std::cout << "Start value after pop: " << stack.start() << std::endl;
+    assert(stack.start() == 10);
+}
+
 // Example usage in main.cpp
 void test_basic_regular_expression() {
     std::wcout << re_char_traits<char>::length("Hello") << std::endl;
     std::wcout << re_char_traits<char>::isdigit('0') << std::endl;
     std::wcout << re_char_traits<char>::isdigit('A') << std::endl;
 
-
     using my_traits = re_char_traits<char>;
-    //re::grep_syntax<re::generic_syntax< my_traits >> grep_syntax;
+
     re::grep_syntax<my_traits> grep_syntax;
+    re::awk_syntax<my_traits> awk_syntax;
+    re::egrep_syntax<my_traits> egrep_syntax;
+    re::perl_syntax<my_traits> perl_syntax;
+
     re::re_engine<re::grep_syntax<my_traits>> r; // ("pattern");
     r.exec_compile("[a-c]+");
     std::string test_string = "test string";
@@ -156,19 +223,19 @@ void test_basic_regular_expression() {
 int main() {
     // Existing code
     const auto testString = "Hello, World!";
-    re_input_string<char_traits> inputString(testString);
+    re_input_string<re_char_traits<char>> inputString(testString);
 
     std::cout << "Length of input string: " << inputString.length() << std::endl;
     assert(inputString.length() == 13);
 
-    char_traits::int_type ch;
+    re_char_traits<char>::int_type ch;
     while (inputString.get(ch) != -1) {
         std::cout << "Next character: " << static_cast<char>(ch) << std::endl;
     }
 
     const auto str1 = "Hello, ";
     const auto str2 = "World!";
-    const re_ctext<char_traits> combinedText(str1, -1, str2);
+    const re_ctext<re_char_traits<char>> combinedText(str1, -1, str2);
 
     std::cout << "Combined text: ";
     for (int i = 0; i < combinedText.length(); ++i) {
@@ -183,6 +250,9 @@ int main() {
     testReferenceCount();
     testHasSubstring();
     // todo testNoSubstring();
+
+    test_precedence_vec();
+    test_precedence_stack();
 
     test_char_traits();
     test_wchar_traits();

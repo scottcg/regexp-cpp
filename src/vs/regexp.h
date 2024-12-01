@@ -2,6 +2,10 @@
 
 #include <utility> // For std::pair
 #include <vector>  // For std::vector
+#include "concepts.h"
+#include "traits.h"
+#include "ctext.h"
+#include "rcimpl.h"
 
 ///////////////////////////////////////////////////////////////////////////////////////////
 // class description ---

@@ -11,7 +11,7 @@ OBJS = $(SRCS:.cpp=.o)
 HEADERS = source.h ctext.h rcimpl.h
 
 # Executable name
-TARGET = main
+TARGET = main.bin
 
 # Default target
 all: $(TARGET)
