@@ -1,0 +1,1320 @@
+
+#include <vector>
+#include <stack>
+#include <utility>
+#include <iostream>
+#include <string>
+#include <cassert>
+#include <assert.h>
+#include <locale>
+
+#include "ctext.h"
+#include "rcimpl.h"
+#include "traits.h"
+
+template <class traitsType> class re_syntax_base;
+template <class traitsType> class re_code_vec;
+template <class traitsTytpe> class re_input_string;
+// Forward Declarations
+
+template <class traitsT> class code_vec;
+template <class traitsType> class re_input_string;
+template <class traitsType> class re_compile_state;
+template <class traitsType> class syntax_base;
+template <class traitsType> class generic_syntax;
+template <class traitsType> class grep_syntax;
+template <class synType> class basic_regular_expression;
+template <class synType> class re_engine;
+
+
+namespace re {
+	const int SYNTAX_ERROR = -1;
+	const int BACKREFERENCE_OVERFLOW = -2;
+	const int EXPRESSION_TOO_LONG = -3;
+	const int ILLEGAL_BACKREFERENCE = -4;
+	const int ILLEGAL_CLOSURE = -5;
+	const int ILLEGAL_DELIMITER = -6;
+	const int ILLEGAL_OPERATOR = -7;
+	const int ILLEGAL_NUMBER = -8;
+	const int MISMATCHED_BRACES = -9;
+	const int MISMATCHED_BRACKETS = -10;
+	const int MISMATCHED_PARENTHESIS = -11;
+
+
+	enum opcodes {
+		OP_END,				// end of compiled operators.
+		OP_NOOP,			// no op; does nothing.
+		OP_BACKUP,			// backup the current source character.
+		OP_FORWARD,			// forward to the next source character.
+
+		OP_BEGIN_OF_LINE,	// match to beginning of line.
+		OP_END_OF_LINE,		// match to end of line.
+		
+		OP_STRING,			// match a string; string chars follow (+null)
+		OP_BIN_CHAR,		// match a "binary" character (follows); usually constants.
+		OP_NOT_BIN_CHAR,	// not (OP_BIN_CHAR).
+		OP_ANY_CHAR,		// matches any single character (not a newline).
+		OP_CHAR,			// match character (char follows), caseless if requested.
+		OP_NOT_CHAR,		// does not match char (char follows), caseless if requested.
+		OP_RANGE_CHAR,		// match a range of chars (two chars follow), caseless if requested.
+		OP_NOT_RANGE_CHAR,	// not(OP_RANGE_CHAR).
+
+		OP_BACKREF_BEGIN,	// a backref starts (followed by a backref number).
+		OP_BACKREF_END,		// ends a backref address (followed by a backref number).
+		OP_BACKREF,			// match a duplicate of backref contents (backref follows).
+		OP_BACKREF_FAIL,	// check prior backref after failed alternate ex. ((a)|(b))
+
+		OP_EXT_BEGIN,		// like a backref, that is "grouping ()", not in backref list (n follows)
+		OP_EXT_END,			// closes an extension (n follows)
+		OP_EXT,				// match a duplicate of extension contexts (n follows)
+		OP_NOT_EXT,			// not (OP_EXT), (n follows)
+
+		OP_GOTO,			// followed by 2 bytes (lsb, msb) of displacement.
+		OP_PUSH_FAILURE,	// jump to address on failure.
+		OP_PUSH_FAILURE2,	// i'm completely out of control
+		OP_POP_FAILURE,		// pop the last failure off the stack
+		OP_POP_FAILURE_GOTO,// combination of OP_GOTO and OP_POP_FAILURE
+		OP_FAKE_FAILURE_GOTO,// push a dummy failure point and jump.
+		
+		OP_CLOSURE,			// push a min,max pair for {} counted matching.
+		OP_CLOSURE_INC,		// add a completed match and loop if more to match.
+		OP_TEST_CLOSURE,	// test min,max pair and jump or fail.
+		
+		OP_BEGIN_OF_BUFFER,	// match at beginning of buffer.
+		OP_END_OF_BUFFER,	// match at end of buffer.
+
+		OP_BEGIN_OF_WORD,	// match at the beginning of a word.
+		OP_END_OF_WORD,		// match at the end of a word.
+
+		OP_DIGIT,			// match using isdigit (one byte follow != 0 for complement)
+		OP_SPACE,			// match using isspace (one byte follow != 0 for complement)
+		OP_WORD,			// match using isalnum (one byte follow != 0 for complement)
+		OP_WORD_BOUNDARY,	// match a word boundary (one byte follow != 0 for complement)
+
+		OP_CASELESS,		// turn on caseless compares
+		OP_NO_CASELESS,		// turn off caseless compares
+		OP_LCASELESS,		// turn on lower caseless compares
+		OP_NO_LCASELESS,	// turn off lower caseless compares
+	};
+
+	enum tokens {	// syntax codes for plain and quoted characters
+		TOK_END				= 0xE00,	// signals end of stream (artifical).
+		TOK_CHAR			= 0xE01,	// match single character.
+		TOK_CTRL_CHAR		= 0xE02,	// a control character.
+		TOK_ESCAPE			= 0xE03,	// the escape/quote (usually \) token.
+		TOK_REGISTER		= 0xE04,	// match a backref.
+		TOK_BACKREF			= 0xE05,	// match a backreference
+		TOK_EXT_REGISTER	= 0xE06	// match \vnn style backrefs (10-99)
+	};
+
+	const int MAX_BACKREFS = 256;
+
+	///////////////////////////////////////////////////////////////////////////////////////////////
+	// number of precedence levels in use, if you change this number, be sure to add 1 so that
+	// ::store_cclass will have the highest precedence for it's own use (it's using NUM_LEVELS - 1).
+	const int NUM_LEVELS = 6;
+
+	///////////////////////////////////////////////////////////////////////////////////////////////
+	// the re_precedence_vec and re_precedence_stack work together to provide and n precedence levels
+	// and (almost) unlimited amount of nesting. the nesting occurs when via the precedence stack
+	// (push/pop) and the re_precedence_vec stores the current offset of the output code via
+	// a store current precedence. did you get all of that?
+
+	template <int sz> class re_precedence_vec : public std::vector<int> {
+		public:
+			re_precedence_vec(int init = 0) : std::vector<int>(sz, init) {}
+	};
+
+	typedef re_precedence_vec<NUM_LEVELS> re_precedence_element;
+
+	///////////////////////////////////////////////////////////////////////////////////////////////
+	// the actual precedence stack; adds a couple of handy members to keep track of the positions
+	// in the re_precedence_element.
+
+	class re_precedence_stack : public std::stack< re_precedence_element > {
+		public:
+			re_precedence_stack() : std::stack< re_precedence_element >(), m_current(0) {
+				push(re_precedence_element());
+			}
+
+			// current precedence value.
+			int current() const		{ return m_current; }
+			void current(int l)		{ m_current = l; }
+
+			// where we are int the input stream; index in array indicates precedence
+			int start() const		{ return top().at(m_current); } 
+			void start(int offset)	{ top().at(m_current) = offset; }
+
+		private:
+			int		m_current;
+	};
+
+
+	///////////////////////////////////////////////////////////////////////////////////////////////
+	// trivial stack used to keep track of the offsets in the code vector where jumps
+	// should occur when changing to lower precedence operators. after a successful 
+	// compilation of a regular expression the future jump stack should be empty.
+
+	typedef std::stack<int> re_future_jump_stack;
+    typedef re_precedence_stack re_precedence_stack;
+
+	/////////////////////////////////////////////////////////////////////////////////////
+	// compile_state contains all of the interesting bits necessary to pass around when
+	// compiling a regular expression. in more basic terms, i could replace this class
+	// by lengthening the function parameter lists, instead i have this class with a
+	// bunch of public members (and lengthening parameter lists using vc++ is a dangerous
+	// undertaking -- especially in templates).
+
+	template <class traitsType> class re_compile_state {
+	public:
+		typedef traitsType						traits_type;
+		typedef typename traits_type::char_traits::char_type			char_type;
+		typedef typename traits_type::char_traits::int_type			int_type;
+		typedef re_syntax_base<traits_type>		syntax_type;
+		typedef re_code_vec<traits_type>		code_vector_type;
+		typedef re_input_string<traits_type>	source_vector_type;
+		typedef std::stack<int>					open_backref_stack;
+
+	public:
+		re_compile_state(const syntax_type& syn, code_vector_type& out, source_vector_type& in) 
+			: op(0),
+			ch(0),
+			beginning_context(1),
+			cclass_complement(false),
+			number_of_backrefs(0),
+			next_backref(1),
+			backref_stack(),
+			parenthesis_nesting(0),
+			group_nesting(0),
+			syntax(syn),
+			output(out),
+			input(in),
+			jump_stack(),
+			prec_stack() {}
+
+	public:
+		int_type				op;						// current converted operation.
+		int_type				ch;						// current input character.
+		int						beginning_context;		// are we at the "start".
+		bool					cclass_complement;		// is the current [] or [^].
+		
+		int						parenthesis_nesting;	// should be 0 when compile is done.
+		int						group_nesting;			// should be 0 when compile is done.
+		int						number_of_backrefs;		// number of () found.
+
+		int						next_backref;			// next free backref number.
+		open_backref_stack		backref_stack;			// stack for nesting backrefs.
+		re_future_jump_stack	jump_stack;				// left open gotos.
+		re_precedence_stack		prec_stack;				// operator precedence stack.
+
+		const syntax_type&		syntax;					// what is our syntax object, this is
+														// a const reference and passed in; i know
+														// this violates the linton rule, but rules
+														// are made to be broken.
+		source_vector_type&		input;					// ref to the input character stream.
+		code_vector_type&		output;					// ref to where the output code is going.
+
+	private:
+		// compile_state_base(const compile_state_base&);
+		// const compile_state_base& operator = (const compile_state_base&);
+	};
+
+	///////////////////////////////////////////////////////////////////////////////////////////////
+	// the re_code_vec is like a smart vector, it's used to store the compiled
+	// regular expression. it provides some simple member functions to store operations
+	// (opcodes) and some member that supply a little amount of safety when using the
+	// class (as opposed to using a simple c/c++ array). the reason that this is a template
+	// is that when i first wrote this package it only dealt with char's; i figured that 
+	// someday i'd add wide character support and i wasn't sure what type the code vector should be.
+
+	const int INC_SIZE = 16;	// starting/increment size for the code array.
+
+
+	template <class traitsT> class re_code_vec {
+	public:
+		typedef traitsT						traits_type;
+		typedef typename traits_type::char_traits::char_type		char_type;
+		typedef typename traits_type::char_traits::char_type		code_type;
+		//typedef re_compile_state<traitsT>	compile_state_type;
+		typedef re_compile_state<traitsT> compile_state_type;
+
+	public:
+		re_code_vec(int n = INC_SIZE)  : m_size(n) {
+			m_offset = 0;
+			m_vector = 0;
+			if ( m_size > 0 ) {
+				m_vector = new code_type [ m_size ];
+				initialize();
+			}
+		}
+
+		re_code_vec(const re_code_vec& rhs) {
+			m_offset = 0;
+			m_vector = 0;
+			m_size = 0;
+			operator = (rhs);
+		}
+
+		re_code_vec& operator = (const re_code_vec& rhs) {
+			if ( this != &rhs ) {
+				m_offset = rhs.m_offset;
+				delete [] m_vector;
+				m_vector = 0;
+				if ( (m_size = rhs.m_size) > 0 ) {
+					m_vector = new code_type [ m_size ];
+					memcpy(m_vector, rhs.m_vector, sizeof(code_type) * m_size);
+				}
+			}
+			return *this;
+		}
+
+		~re_code_vec() {
+			delete [] m_vector;
+		}
+
+
+		const code_type operator [] (int i) const {
+			return m_vector[i];
+		}
+
+		code_type& operator [] (int i) {
+			if ( i > m_offset ) m_offset = i;
+			return m_vector[i];
+		}
+
+	public:
+		void initialize() {	// can be called to re-initialize the object.
+			m_offset = 0;
+			if ( m_vector ) {
+				memset(m_vector, 0, sizeof(code_type) * m_size);
+			}
+		}		
+		void alloc(int n) { 	// check vector size, enlarge if necessary.
+			if ( (m_offset + n) > m_size ) {
+				n = INC_SIZE + (m_offset + n);
+				code_type* p = new code_type [n];
+				if ( m_vector ) {
+					memcpy(p, m_vector, sizeof(code_type) * m_size);
+					delete [] m_vector;
+				}
+				m_size = n;
+				m_vector = p;
+			}
+		}
+
+	public:
+		void store(code_type t) {
+			alloc(1);
+			assert(m_offset < m_size);
+			m_vector[m_offset++] = t;
+		}
+
+		void  store(code_type op, code_type flag) {
+			alloc(2);
+			m_vector[m_offset++] = op;
+			m_vector[m_offset++] = flag;
+		}
+
+		void store(code_type opcode, re_precedence_stack& prec_stack) {
+			prec_stack.start(m_offset);
+			alloc(1);
+			store(opcode);
+		}
+
+		void store(code_type opcode, code_type ch, re_precedence_stack& prec_stack) {
+			prec_stack.start(m_offset);
+			alloc(2);
+			store(opcode);
+			store(ch);
+		}
+
+		void put_address(int off, int addr) {
+			alloc(2); // just in case
+			int dsp = addr - off - 2;
+			m_vector[off] = (code_type)(dsp & 0xFF);
+			m_vector[off + 1] = (code_type)((dsp >> 8) & 0xFF);
+		}
+
+		void store_jump(int opcode_pos, int type, int to_addr) {
+			alloc(3);
+			// move stuff down the stream, we are going to insert at pos
+			for ( int a = m_offset - 1; a >= opcode_pos; a-- ) {
+				m_vector[a + 3] = m_vector[a];
+			}
+			m_vector[opcode_pos] = (code_type)(type);
+			put_address(opcode_pos + 1, to_addr);
+			m_offset += 3;
+		}
+
+		int offset() const {
+			return m_offset;
+		}
+
+		const code_type* code() const {
+			return m_vector;
+		}
+
+		int store_alternate(compile_state_type& cs) {			// used for "A|B"
+			store_jump(cs.prec_stack.start(), OP_PUSH_FAILURE, offset() + 6);
+			store(OP_GOTO);
+			cs.jump_stack.push(offset());
+			store(0);
+			store(0);
+			cs.prec_stack.start(offset());
+
+			return 0;
+		}
+
+		int store_class_alternate(compile_state_type& cs) {		// used for "[AB"
+			store_jump(cs.prec_stack.start(), OP_PUSH_FAILURE, offset() + 6);
+
+			// similar to above.
+			store(OP_POP_FAILURE_GOTO);
+			cs.jump_stack.push(offset());
+			store(0);
+			store(0);
+			cs.prec_stack.start(offset());
+			return 0;
+		}
+
+		int store_concatenate(compile_state_type& cs) {			// used for "[^AB]"
+			// store_jump(cs.prec_stack.start(), OP_PUSH_FAILURE2, m_offset + 6);
+			store_jump(cs.prec_stack.start(), OP_PUSH_FAILURE2, m_offset + 4);
+			store(OP_FORWARD);
+			cs.prec_stack.start(offset());
+			store(OP_POP_FAILURE);
+			return 0;
+		}
+
+		int store_class(compile_state_type& cs) {				// used for "[A]" and "[^A]"
+			// do all kinds of complicated stuff to initialize the precedence stack and to set
+			// the [] to the highest precedence we can get (so that any future jumps we insert
+			// when processing the character class will be completed when we finish).
+			int start_offset = m_offset;
+			cs.prec_stack.start(m_offset);
+			cs.prec_stack.current(NUM_LEVELS - 1);
+			cs.prec_stack.start(m_offset);
+
+			if ( cs.input.get(cs.ch) ) {			// consume the '['.
+				return -1;
+			}
+
+			cs.cclass_complement = false;			// assume we aren't going to see a '^'
+			if ( cs.ch == '^' ) {
+				cs.cclass_complement = true;
+				if ( cs.input.get(cs.ch) ) {		// consume the '^'
+					return -1;
+				}
+			}
+
+			bool first_time_thru = true;
+			do {
+				if ( first_time_thru == false && (cs.cclass_complement == false) ) {
+					store_class_alternate(cs);
+				} else {
+					first_time_thru = false;
+				}
+
+				if ( cs.ch == '\\' ) {
+					cs.input.get(cs.ch);
+					if ( cs.syntax.translate_cclass_escaped_op(cs) ) {
+						return SYNTAX_ERROR;
+					}
+				} else if ( cs.ch == '-' && cs.input.peek() != ']' ) {
+					store((cs.cclass_complement == false) ? OP_CHAR : OP_NOT_CHAR, '-');
+				} else {
+					if ( cs.input.peek() == '-' ) {
+						code_type first_ch = cs.ch;
+						if ( cs.input.get(cs.ch) ) {
+							return -1;
+						}
+						if ( cs.input.peek() == ']' ) {
+							cs.input.unget(cs.ch); // put the '-' back
+							store(((cs.cclass_complement == false) ? OP_CHAR : OP_NOT_CHAR), first_ch);
+						} else {
+							if ( cs.input.get(cs.ch) ) {
+								return -1;
+							}
+							store((cs.cclass_complement == false) ? OP_RANGE_CHAR : OP_NOT_RANGE_CHAR);
+							store(first_ch);
+							store(cs.ch);
+						}
+					} else {
+						store(((cs.cclass_complement == false) ? OP_CHAR : OP_NOT_CHAR), cs.ch);
+					}
+				}
+				
+				if ( cs.cclass_complement == true ) {
+					store(OP_BACKUP);
+				}
+
+				if ( cs.input.get(cs.ch) ) {
+					return -1;
+				}
+			} while ( cs.ch != ']' );
+
+			if ( cs.cclass_complement == true ) {
+				store_concatenate(cs);
+			}
+
+			// let's put start back to the start of cclass, possibly different because of the
+			// insertion of a jumps. since we (cclass) are operating at the highest precedence
+			// all of the future jumps will be popped after we return.
+			cs.prec_stack.start(start_offset);
+			return 0;
+		}
+
+
+		void store_closure_count(compile_state_type& cs, int pos, int addr, int mi, int mx) {
+			const int skip = 7;
+			alloc(skip);
+			for ( int a = m_offset - 1; a >= pos; a-- ) {
+				m_vector[a + skip] = m_vector[a];
+			}
+			m_vector[pos++] = (code_type)(OP_CLOSURE);
+			put_address(pos, addr);
+			pos += 2;
+			put_number(pos, mi);
+			pos += 2;
+			put_number(pos, mx);
+			m_offset += skip; // 4 + 3
+
+			store_jump(m_offset, OP_CLOSURE_INC, cs.prec_stack.start() + 3);
+			put_number(m_offset, mi);
+			m_offset += 2;
+			put_number(m_offset, mx);
+			m_offset += 2;
+
+			cs.prec_stack.start(m_offset);
+		}
+
+
+		int store_closure(compile_state_type& cs) {						// used for "{n,m}"
+			typedef re_input_string<traitsT> re_input_string_type;
+			typename re_input_string_type::int_type ch = 0;
+			if ( cs.input.get(ch) ) {
+				return -1;
+			}
+
+			int minimum = -1, maximum = -1;
+			if ( ch == ',' ) {				// {,max} no more than max {0,max}
+				if ( cs.input.get(ch) ) {	// skip the ','
+					return -1;
+				}
+				minimum = 0;
+				maximum = cs.input.get_number(ch);
+			} else {
+				minimum = cs.input.get_number(ch);
+				maximum = 0;
+				if ( ch == ',' ) {			// {min,} at least min times {min,0}
+					if ( cs.input.get(ch) ) {
+						return -1;
+					}
+					if ( ch != '}' ) {		// {min,max} at least min no more than max
+						maximum = cs.input.get_number(ch);
+					}
+				} else {					// {min} at exactly min (and max)
+					maximum = minimum;
+				}
+			}
+			if ( !(minimum >= 0 && maximum >= 0) ) {
+				return -1;
+			}
+
+			if ( ch != '}' ) {
+				return -1;
+			}
+
+			store_closure_count(cs, cs.prec_stack.start(), m_offset + 10, minimum, maximum);
+
+			return 0;
+		}
+
+	private:
+		void put_number(int pos, int n) {
+			alloc(2);	// just in case
+			m_vector[pos++] = (code_type)(n & 0xFF);
+			m_vector[pos] = (code_type)((n >> 8) & 0xFF);
+		}
+
+		code_type*		m_vector;
+		int				m_size;
+		int				m_offset;
+		int				m_cclass_org;
+	};
+
+
+/////////////////////////////////////////////////////////////////////////
+// base for a class that is used to help process and input array of chars
+// (or wchar_t's). rather than deal with a simple c/c++ array  i'm using
+// this class so that i can catch some pointer/access errors here.
+//
+// in addition, i've included some stuff to extract some common stuff from
+// the input array, like numbers control characters. this is a template
+// class since the input can be char/wchar_t.
+
+
+template <class traitsType> class re_input_string {
+public:
+	typedef traitsType				traits_type;
+	typedef typename traitsType::char_traits::char_type	char_type;
+	typedef typename traitsType::char_traits::int_type	int_type;
+
+public:
+	re_input_string(const char_type* s, size_t l = -1) {
+		m_str = s;
+		if ( l == static_cast<size_t>(-1)  ) {
+			l = (s) ? traits_type::length(s) : 0;
+		}
+		m_len = l;
+		m_offset  = 0;
+	}
+
+	const char_type operator [] (int i) const	{ return m_str[i]; }
+	size_t length() const						{ return m_len; }
+
+public:
+	int get(int_type& v) {					// get next char; return -1 if eof
+		if ( m_offset >= m_len ) { 
+			return -1;
+		}
+		v = m_str[m_offset++];
+		return 0;
+	}
+	int_type peek() const {					// just look at next char
+		assert(m_offset < m_len);
+		return m_str[m_offset];
+	}
+	void unget() {							// backup one character
+		assert(m_offset != 0);
+		m_offset--;
+	}
+	void unget(int_type& v) {				// backup and set prior char to v
+		m_offset--;
+		v = m_str[m_offset];
+	}
+	void advance(int skip) {				// skip some characters (offset() += skip)
+		assert(skip >= 0);
+		m_offset += skip;
+	}
+
+	int get_number(int_type& ch) {			// get a "number" (integer)
+		assert(traits_type::isdigit(m_str[m_offset - 1]));
+		get(ch);
+		if ( !traits_type::isdigit(m_str[m_offset -2]) ) {
+			return -1;
+		}
+		return m_str[m_offset - 2] - '0';
+	}
+
+	int peek_number(int_type& n, int max_digits = 6) const { // get an integer, with a max digits
+		assert(max_digits < 7);
+		char_type temp_array[7]; // absolute max +null.
+		int nfound = 1;
+		temp_array[nfound - 1] = m_str[m_offset - 1];
+		while ( (max_digits - nfound) ) {
+			if ( traits_type::isdigit(m_str[m_offset - 1 + nfound]) ) {
+				temp_array[nfound] = m_str[m_offset -1 + nfound];
+				nfound++;
+			} else {
+				break;
+			}
+		}
+		temp_array[nfound] = 0;
+		int int_value = traits_type::cstr_to_decimal_int(temp_array);
+		n = int_value;
+		return nfound;
+	}
+	int offset() const		{ return m_offset; }
+	bool at_begin() const	{ return (m_offset == 0) ? true : false; }
+	bool at_end() const		{ return (m_offset == m_len) ? true : false; }
+
+	int translate_ctrl_char(int_type& ch);	// this needs to go.
+private:
+	int hexidecimal_to_decimal(int ch);		// convert a hex to decimal
+	int get_hexidecimal_digit(int_type& h);	// these should now be functions.
+
+private:
+	const char_type*	m_str;
+	int					m_len;
+	int					m_offset;
+
+private:
+	// re_input_string(const re_input_string&);
+	// re_input_string& operator = (const re_input_string&) const;
+};
+
+template <class traitsType>
+int re_input_string<traitsType>::translate_ctrl_char(int_type& ch) {
+	switch ( ch ) {
+	case 'a': case 'A':		// ^G bell
+		ch = 7;
+		break;
+
+	case 'b': case 'B':
+		ch = '\b';
+		break;
+
+	case 'c': case 'C':		// control character \cL == ^L
+		get(ch);
+		if ( ch < '@' || ch > '_' ) {
+			return -1;
+		}
+		ch = toupper(ch) - '@';
+		break;
+
+	case 'f': case 'F':
+		ch = '\f';
+		break;
+
+	case 'n': case 'N':
+		ch = '\n';
+		break;
+
+	case 'r': case 'R':
+		ch = '\r';
+		break;
+
+	case 't': case 'T':
+		ch = '\t';
+		break;
+
+	case 'v': case 'V':
+		ch = '\v';
+		break;
+
+	case 'x': case 'X':
+		return get_hexidecimal_digit(ch);// hex code
+		break;
+
+	case '0':		// \000 octal or a register.
+		ch = 0;
+		break;
+
+	default:
+		break;
+	}
+	return 0;
+}
+
+template <class traitsType>
+int re_input_string<traitsType>::get_hexidecimal_digit(int_type& h) {
+	int_type c;
+	int value1;
+	get(c);
+	value1 = hexidecimal_to_decimal(c);
+	if ( value1 == -1 ) {
+		return -1;
+	}
+
+	get(c);
+	int value2 = hexidecimal_to_decimal(c);
+	if ( value2 == -1 ) {
+		return -1;
+	}
+	h = (int_type)(value1 * 16 + value2);
+	return 0;
+}
+
+template <class traitsType>
+int re_input_string<traitsType>::hexidecimal_to_decimal(int ch) {
+	if ( ch >= '0' && ch <= '9' )
+		return ch - '0';
+	if ( ch >= 'a' && ch <= 'f')
+		return ch - 'a' + 10;
+	if ( ch >= 'A' && ch <= 'F' )
+		return ch - 'A' + 10;
+	return -1;
+}
+
+// Forward declarations
+template <class traitsType> class re_compile_state;
+template <class traitsType> class re_code_vec;
+
+	///////////////////////////////////////////////////////////////////////////////////////////
+	// each regular expression syntax is subclassed from this. the engine isn't completely
+	// (or nearly?) general enough to do whatever you want with regular expressions -- it was my
+	// impression that almost no one would be interested in writing new syntax classes to deal
+	// with different regular expression syntaxes.
+	//
+	// none of these classes contain cctor or assignment operators; since all of the derived
+	// classes (other than syntax_fast_all) don't have any data members they "work" exactly the
+	// same (thus static const objects of those classes is what i was planning to use).
+
+	// forward declaration for parameter to re_syntax_base. this is a implementation class (see
+	// syntax.h for definition) that's only interesting if you are writing a new re_syntax_base 
+	// derived class.
+
+	template <class traitsType> class re_syntax_base {
+	public:
+		typedef traitsType						traits_type;
+		typedef typename traits_type::char_type	char_type;
+		typedef typename traits_type::int_type	int_type;
+		typedef typename traits_type::string_type	string_type;
+		typedef re_compile_state<traitsType>	re_compile_state_type;
+
+	public:
+		virtual bool context_independent_ops() const					{ return false; }
+
+		virtual int precedence(int op) const							{ return 0; }
+		virtual int compile(re_compile_state_type& cs) const {
+			cs.op = !TOK_END;
+			while ( cs.op != TOK_END ) {
+				if ( cs.input.at_end() == true ) {
+					cs.op = TOK_END;
+				} else {
+					cs.input.get(cs.ch);
+					cs.op = cs.syntax.translate_plain_op(cs);
+					if ( cs.op == TOK_ESCAPE ) {
+						cs.input.get(cs.ch);
+						cs.op = cs.syntax.translate_escaped_op(cs);
+						if ( cs.op == TOK_CTRL_CHAR ) {
+							cs.op = TOK_CHAR;
+							if ( cs.input.translate_ctrl_char(cs.ch) ) {
+								return SYNTAX_ERROR;
+							}
+						}
+					}
+				}
+				// propagate the current character offset to the higher level (precedence)
+				// or clean up and pending jumps for lower precedence operators.
+
+				int level = cs.syntax.precedence(cs.op);
+				if ( level > cs.prec_stack.current() ) {
+					int c = cs.prec_stack.current();
+					for ( cs.prec_stack.current(c++); cs.prec_stack.current() < level;
+							cs.prec_stack.current(c++) ) {
+						cs.prec_stack.start(cs.output.offset());
+					}
+					cs.prec_stack.start(cs.output.offset());
+				} else if ( level < cs.prec_stack.current() ) {
+					cs.prec_stack.current(level);
+					while ( cs.jump_stack.size() ) {
+						if ( cs.jump_stack.top() >= cs.prec_stack.start() ) {
+							cs.output.put_address(cs.jump_stack.top(), cs.output.offset());
+							cs.jump_stack.pop();
+						} else {
+							break;
+						}
+					}
+				}
+
+				int err = cs.syntax.compile_opcode(cs); // finally, compile a single opcode.
+				if ( err ) {	// syntax error someplace
+					return err;
+				}
+				cs.beginning_context = (cs.op == '(' || cs.op == '|');
+			}
+			return 0;
+		}
+
+		virtual int compile_opcode(re_compile_state_type& cs) const {
+			switch ( cs.op ) {
+			case TOK_END:
+			cs.output.store(OP_END, cs.prec_stack);
+			break;
+
+			case TOK_CHAR:
+			cs.output.store(OP_CHAR, cs.ch, cs.prec_stack);
+			break;
+
+			case '.':
+			cs.output.store(OP_ANY_CHAR, cs.prec_stack);
+			break;
+
+			case '^':
+			if ( !cs.beginning_context ) {
+				if ( context_independent_ops() ) {
+					return ILLEGAL_OPERATOR;
+				} else {
+					cs.output.store(OP_CHAR, cs.ch, cs.prec_stack);
+					break;
+				}
+			}
+			cs.output.store(OP_BEGIN_OF_LINE, cs.prec_stack);
+			break;
+
+			case '$':
+			if ( !(cs.input.at_end() == true || incomplete_eoi(cs)) ) {
+				if ( context_independent_ops() ) {
+					return ILLEGAL_OPERATOR;
+				} else {
+					cs.output.store(OP_CHAR, cs.ch, cs.prec_stack);
+					break;
+				}
+			}
+			cs.output.store(OP_END_OF_LINE, cs.prec_stack);
+			break;
+
+			case '?':
+			case '*':
+			case '+':		  
+			if ( cs.beginning_context ) {
+				if ( context_independent_ops() ) {
+					return ILLEGAL_OPERATOR;
+				} else {
+					cs.output.store(OP_CHAR, cs.ch, cs.prec_stack);
+					break;
+				}
+			}
+			
+			// we skip empty expressions for ?, + and * matches
+			if ( cs.prec_stack.start() == cs.output.offset() ) {
+				break;
+			}
+
+			switch ( cs.op ) {
+			case '?':
+				cs.output.store_jump(cs.prec_stack.start(), OP_PUSH_FAILURE,
+					cs.output.offset() + 3);
+				break;
+
+			case '+':
+			case '*':
+				cs.output.store_jump(cs.prec_stack.start(), OP_PUSH_FAILURE,
+					cs.output.offset() + 6);
+				cs.output.store_jump(cs.output.offset(), OP_GOTO,
+					cs.prec_stack.start());
+
+				if ( cs.op == '+' ) {	// jump over initial failure_jump
+					cs.output.store_jump(cs.prec_stack.start(), OP_FAKE_FAILURE_GOTO,
+						cs.prec_stack.start() + 6);
+				}
+				break;
+			}
+			break;
+
+			case '[':
+				return cs.output.store_class(cs);
+
+			case TOK_REGISTER:
+				if ( cs.ch == '0' || !(cs.ch > '0' && cs.ch <= '9') ) {
+					return ILLEGAL_BACKREFERENCE;
+				}
+				cs.output.store(OP_BACKREF, cs.ch - '0');
+				break;
+
+			case TOK_BACKREF:
+				cs.output.store(OP_BACKREF, cs.ch, cs.prec_stack);
+				break;
+
+			case '(':
+				cs.number_of_backrefs++;
+				cs.parenthesis_nesting++;
+
+				cs.prec_stack.start(cs.output.offset());
+
+				cs.output.store(OP_BACKREF_BEGIN, cs.next_backref);
+				cs.backref_stack.push(cs.next_backref++);
+
+				cs.prec_stack.push(re_precedence_element());
+				cs.prec_stack.current(0);
+				cs.prec_stack.start(cs.output.offset());
+				break;
+
+			case ')':
+				if ( cs.parenthesis_nesting <= 0 ) {
+					return MISMATCHED_PARENTHESIS;
+				}
+				cs.parenthesis_nesting--;
+
+				assert(cs.prec_stack.size() > 1);
+				cs.prec_stack.pop();
+				cs.prec_stack.current(precedence('('));
+
+				cs.output.store(OP_BACKREF_END, cs.backref_stack.top());
+				cs.backref_stack.pop();
+				break;
+			
+			case '|':
+				return cs.output.store_alternate(cs);
+
+			case TOK_ESCAPE:
+			default:
+				return ILLEGAL_OPERATOR;
+			}
+			return 0;
+		}
+
+		virtual bool incomplete_eoi(re_compile_state_type& cs) const	{ return false; }
+		virtual int translate_plain_op(re_compile_state_type& cs) const	{ return 0; }
+		virtual int translate_escaped_op(re_compile_state_type& cs) const	{ return 0; }
+		virtual int translate_cclass_escaped_op(re_compile_state_type& cs) const {
+			const int flag = (cs.cclass_complement == true) ? 1 : 0;
+			switch ( cs.ch ) {
+				case 'w':
+					cs.output.store(OP_WORD, flag);
+					break;
+
+				case 's':
+					cs.output.store(OP_SPACE, flag);
+					break;
+
+				case 'd':
+					cs.output.store(OP_DIGIT, flag);
+					break;
+
+				default:
+					break;
+			}
+			return 0;
+		}
+	};
+
+
+	///////////////////////////////////////////////////////////////////////////////////////////
+	// generic syntax contains the syntax code for the "comman" re that existing in all of
+	// the derived classes. 
+	//
+	//  c			nonmetacharacter c
+	//  \c			escape sequence or literal character c
+	//  ^			beginning of string
+	//  $			end of string
+	//  .			any character
+	//  [ab...]		any character in ab...
+	//  [^ab...]	any character not in ab...
+	//  [a-b]		any character in the range a-b
+	//  [^a-b]		any character not in the range a-b
+	//  r*			zero or more occurrences of r
+	//
+
+	template <class traitsType>
+	class generic_syntax : public re_syntax_base<traitsType> {
+	public:
+		typedef re_compile_state<traitsType>	re_compile_state_type;
+
+	public:
+		virtual bool context_independent_ops() const;
+
+		virtual int translate_plain_op(re_compile_state_type&) const;
+		virtual int translate_escaped_op(re_compile_state_type&) const;
+		virtual int precedence(int op) const;
+	};
+
+
+	///////////////////////////////////////////////////////////////////////////////////////////
+	// grep contains tagged regular expressions.
+	//
+	//  c		any non-special character c matches itself
+	//  \c		turn off any special meaning of character c
+	//  ^		beginning of line
+	//  $		end of line
+	//  .		any single character
+	//  [...]	any one of character in ...; ranges (a-z) are legal
+	//  [^...]	any single character not in ...; ranges are legal
+	//  \n		with the n'th \( \) matched
+	//  r*		zero or more occurrences of r
+	//  r1r2	r1 followed by r2
+	//  \(...\)	tagged regular expression
+	//
+	//	no regular expression matches a newline (\n).
+
+	template <class traitsType>
+	class grep_syntax : public generic_syntax<traitsType> {
+	public:
+		typedef traitsType						traits_type;
+		typedef typename traits_type::char_type			char_type;
+		typedef typename traits_type::int_type			int_type;
+		typedef re_compile_state<traitsType>	re_compile_state_type;
+
+		virtual bool context_independent_ops() const;
+
+		virtual bool incomplete_eoi(re_compile_state_type& cs) const;
+		virtual int translate_escaped_op(re_compile_state_type& cs) const;
+	};
+
+
+	/////////////////////////////////////////////////////////////////////////////////////
+
+	template <class triatsT>
+	bool generic_syntax<triatsT>::context_independent_ops() const { return 1; }
+
+	template <class triatsT>
+	int generic_syntax<triatsT>::translate_plain_op(re_compile_state_type& cs) const {
+		switch ( cs.ch ) {
+		case '\\':
+			return TOK_ESCAPE;
+
+		case '[':
+		case ']':
+		case '^':
+		case '$':
+		case '.':
+		case '*':
+			return cs.ch;
+
+		default:
+			return TOK_CHAR;
+		}
+	}
+
+	template <class triatsT>
+	int generic_syntax<triatsT>::translate_escaped_op(re_compile_state_type&) const {
+		return TOK_CHAR;
+	}
+
+	template <class triatsT>
+	int generic_syntax<triatsT>::precedence(int op) const {
+		switch ( op ) {
+		case TOK_END:
+			return 0;
+		case ')':
+			return 1;
+		case '|':
+			return 2;
+		case '^':
+		case '$':
+			return 3;
+
+		default:
+			return 4;
+		}
+	}
+
+	/////////////////////////////////////////////////////////////////////////////////////
+
+	template <class triatsT>
+	bool grep_syntax<triatsT>::context_independent_ops() const { return 0; }
+
+	// grep allows threes different escaped operators, all have to do 
+	// with backreferences (or tagged expressions in grep lingo). 
+	//	\( start of backref
+	//	\) end of backref
+	//	\digit refer to a backref -- should > 0 && < number of tags
+	// anything else is just a character match.
+
+	template <class triatsT>
+	int grep_syntax<triatsT>::translate_escaped_op(re_compile_state_type& cs) const {
+		if ( traits_type::isdigit(cs.ch) ) {
+			int_type value = 0;
+			int n_digits = cs.input.peek_number(value);
+
+			if ( cs.number_of_backrefs && value <= cs.number_of_backrefs && value > 0 ) {
+				cs.input.advance(n_digits - 1);
+				cs.ch= value;
+				return TOK_BACKREF;
+			} else {
+				return SYNTAX_ERROR;
+			}
+		}
+
+		switch ( cs.ch ) {
+		case '(':
+		case ')':
+			return cs.ch;
+
+		default:
+			return TOK_CHAR;
+		}
+	}
+
+	// check for "\)" as in expressions like "\(^foo$\)"; i need to check to 
+	// make sure that this is legal grep syntax.
+
+	template <class triatsT>
+	bool grep_syntax<triatsT>::incomplete_eoi(re_compile_state_type& cs) const {
+		assert(cs.input.at_end() == false);
+		int_type ch = 0;
+		cs.input.get(ch);
+		if ( ch == '\\' && cs.input.at_end() == false ) {
+			cs.input.get(ch);
+			cs.input.unget();
+			cs.input.unget();
+			if ( ch == ')' ) {
+				return true;
+			}
+		} else {
+			cs.input.unget();
+		}
+		return false;
+	}
+
+
+///////////////////////////////////////////////////////////////////////////////////////////
+// class description ---
+//  basic_regular_expression is a class to compile/apply regular expressions to strings.
+//  a regular expression must be compiled before one can compare another string to
+//  the expression. compilation is done using "::compile" (go figure). after the
+//  regular expression has been compiled there are three techniques to compare a
+//  string to the regular expression:
+//		::match compare a string to a re, the match must be exact. will return the
+//			length of the match (>=0), or -1 for failed match, and finally -2 for an
+//			internal error (closure stack overflow).
+//		::search will walk through the string parameter calling ::match looking for
+//			the string. returns (>=0) for the starting position for a successful
+//			match, or -1 for failed search, and -2 for an error (closure stack overflow).
+//		::partial_match will try to match a string "partially" to a regular expression.
+//			returns the length of a partial match, -1 for no matches, -2 for an error
+//			(closure stack overflow).
+//
+// additional members ---
+//	caseless_compares can be used to "turn off/on" comparisons using casesless 
+//		operators (that is "A+" will match "aA"), similar to "grep -i" or 
+//		perl "/i"
+//	lower_caseless_compares can be used to "turn off/on" lower caseness in comparisons.
+//		so, "Aa" will match "AA" but not "aa". similar to "grep -y".
+//
+// implementation notes ---
+//	the implementation is hidden via the rcimpl template. the basic_regular_expression_impl
+//  is a reference counted/copy on write class, that means copying these is very 
+//  inexpensive. a copy_on_write copy will cost a new/copy of the internal runtime
+//  regular expression code.
+// 
+//  i've tried to stay away from new'ing memory from any of the member functions; you
+//  shouldn't have to worry about deleting memory some any reference parameter or return
+//  value (instead i'm using std::string's everywhere).
+//
+
+// forward declarations for classes we are going to need in basic_regular_expression.
+template <class syntaxType> class re_engine;
+template <class traitsType> class syntax_base;
+
+
+	// when returning backreference matches, these are the classes used to do that
+	typedef std::pair<int, int>			re_match_type;
+	typedef std::vector<re_match_type>	re_match_vector;
+
+
+	template <class synType> class basic_regular_expression {
+	public:
+		typedef synType						syntax_type;
+		typedef typename syntax_type::traits_type	traits_type;
+		typedef typename traits_type::char_type	char_type;
+		typedef typename traits_type::int_type	int_type;
+		typedef typename traits_type::string_type	string_type;
+		typedef re_ctext<traits_type>		ctext_type;
+		typedef re_engine<syntax_type>		engine_type;
+		typedef rcimpl<engine_type>			engine_impl_type;
+
+	public:
+		basic_regular_expression() : m_impl(new engine_type()) {}
+		basic_regular_expression(const char_type* s, size_t slen) : m_impl(new engine_type()) {
+			compile(s, slen);
+		}
+
+		basic_regular_expression(const string_type& str) : m_impl(new engine_type()) {
+			compile(str.data(), str.length());
+		}
+
+		basic_regular_expression(const basic_regular_expression& rhs) : m_impl(rhs.m_impl) {}
+
+		virtual ~basic_regular_expression() {}
+
+		const basic_regular_expression& operator = (const basic_regular_expression& rhs) {
+			if ( this != &rhs ) {
+				m_impl = rhs.m_impl;
+			}
+			return *this;
+		}
+
+	public:
+		void caseless_compares(bool c) { m_impl->caseless_cmps = c; }
+		void lower_caseless_compares(bool c) { m_impl->lower_caseless_cmps = c; }
+		size_t maximum_closure_stack() const { return m_impl->maximum_closure_stack; }
+		void maximum_closure_stack(size_t mx) { m_impl->maximum_closure_stack = mx; }
+
+	public:
+		int compile(const char_type* s, size_t slen = -1, int* err_pos = 0) {
+			return m_impl->exec_compile(s, slen, err_pos);
+		}
+		int compile(const string_type& s, int* err_pos = 0) {
+			return m_impl->exec_compile(s.data(), s.length(), err_pos);
+		}
+
+		int optimize() { return m_impl->exec_optimize(); }
+
+	public:
+		int match(const char_type* s, size_t slen = -1, size_t n = -1) const {
+			ctext_type text(s, slen, 0, n);
+			return m_impl->exec_match(text);
+		}
+		int match(const char_type* s, re_match_vector& m, size_t slen = -1, size_t n = -1) const {
+			ctext_type text(s, slen, 0, n);
+			return m_impl->exec_match(text, false, m);
+		}
+		
+		int match(const string_type& s, size_t pos = 0, size_t n = -1) const {
+			ctext_type text(s.data(), s.length(), 0, 0, pos, n);
+			return m_impl->exec_match(text);
+		}
+		int match(const string_type& s, re_match_vector& m, size_t pos = 0, size_t n = -1) const {
+			ctext_type text(s.data(), s.length(), 0, 0, pos, n);
+			return m_impl->exec_match(text, false, m);
+		}
+
+	public:
+		int partial_match(const char_type* s, size_t slen = -1, size_t n = -1) const {
+			ctext_type text(s, slen, 0, 0, 0, n);
+			return m_impl->exec_match(text, true);
+		}
+		int partial_match(const string_type& s, size_t pos = 0, size_t n = -1) const {
+			ctext_type text(s.data(), s.length(), 0, 0, pos, n);
+			return m_impl->exec_match(text, true);
+		}
+
+	public:
+		int search(const char_type* s, size_t slen = -1, size_t n = -1) const {
+			ctext_type text(s, slen, 0, n);
+			return m_impl->exec_search(text);
+		}
+		int search(const char_type* s, re_match_vector& m, size_t slen = -1, size_t n = -1) const {
+			ctext_type text(s, slen, 0, 0, n);
+			return m_impl->exec_search(text, 0, m);
+		}
+
+		int search(const string_type& s, size_t pos = 0, size_t n = -1) const {
+			ctext_type text(s.data(), s.length(), 0, 0, pos, n);
+			return m_impl->exec_search(text);
+		}
+		int search(const string_type& s, re_match_vector& m, size_t pos = 0, size_t n = -1) const {
+			ctext_type text(s.data(), s.length(), 0, 0, pos, n);
+			return m_impl->exec_search(text, 0, m);
+		}
+
+	#if 0
+		typedef std::vector < string_type > string_vector_type;
+		int split(const char_type* s, size_t slen = -1, string_vector_type&, size_t pos = 0, size_t n = -1);
+		int split(const char_type* s, size_t slen = -1, re_match_vector&, size_t pos = 0, size_t n = -1);
+		int split(const string_type& s, string_vector_type&, size_t pos = 0, size_t n = -1);
+		int split(const string_type& s, re_match_vector&, size_t pos = 0, size_t n = -1);
+
+		int substitute(const string_type& s, const string_type& w, bool global = false,  size_t pos = 0, size_t n = -1);
+		int substitute(const string_type& s, const string_vector_type&, bool global = false,  size_t pos = 0, size_t n = -1);
+	#endif
+
+	private:
+		engine_impl_type	m_impl;
+	};
+}
+
+#if 0
+
+
+// implement test.run() here
+namespace {
+	#include "test.h"
+	using namespace re;
+
+	void test_run() {
+		re_char_traits<char> t = re_char_traits<char>();
+		re::grep_syntax<re::generic_syntax< re_char_traits<char> >> grep_syntax;
+		re:re_engine<re::grep_syntax<re::generic_syntax< re_char_traits<char> >>> regex;
+		
+		// Create a basic_regular_expression using egrep_syntax
+		re::basic_regular_expression<re::grep_syntax<re::generic_syntax< re_char_traits<char> >>> regex("pattern");
+
+		// Test the regex object
+		std::string test_string = "test string";
+		re_match_vector matches;
+
+		// Assuming there is a method to match the regex with a string
+		bool result = regex.match(test_string, matches);
+
+			// Print the result
+		std::cout << "Match result: " << (result ? "Matched" : "Not Matched") << std::endl;
+		for (const auto& match : matches) {
+			std::cout << "Match from " << match.first << " to " << match.second << std::endl;
+		}
+	}
+}
+#endif

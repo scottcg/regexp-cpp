@@ -1,0 +1,70 @@
+
+
+todo for regular expression class library.
+
+0. think about adding a couple of new operators; these might only be for internal
+	use only:
+	1. a 'OP_STRCHR' that looks for the first occurance of a character in the
+		input string; as an optimization, we could always try to get the search/match
+		started at this character (since strchr should be reasonably fast).
+
+	2. better handling of character classes; something that would allow the class
+		to be matched/search in one fell swoop, rather than in bits and pieces.
+		we want character classes to behave like alternation, but have better
+		performance (could used new ops, 'match (not) any of these', 
+		'match (not) range of characters').
+
+	3. look at the re book; but i like this '^' processesing to get a anchor
+		figured out.
+
+	4. i also like the building a prefix characters that could be used to
+		determine the starting character class for a search or a match.
+
+0. since i'm using a static object for the syntax classes, if i try to define
+	a regexp object as static then chances are the other static objects have not
+	been created yet --- this is a real problem.
+
+1. add the rest of the perl operators and escapes
+	a. (:..) stuff there are three of these (or maybe a couple more)
+
+	b. \V and stuff; this might result in a rethink of the multiline matching capabilities
+	of perl.
+
+	c. similar to a. but a general grouping operator would be handy.
+
+2. octal/hexidecimal numbers are handled correctly. i need to remove that silly
+	source (input) member function and use sscanf instead.
+
+3. test suite for error handling; syntax errors and something to fill up the
+	matching stack.
+
+4. add some kind of namespace 
+	namespace Jungleware_Inc {
+	};
+
+5. get rid of stdio.h
+
+7. study map and optimize stuff.
+	a. convert all (opchar, ?) of lenght >1 to opstring.
+	b. create a study map; which is a map of the opchar, opanychar, etc. in 
+		a regular expression. so if a search string doesn't contain any of the
+		characters it can be skipped. it could also be used to establish a 
+		starting position -- first the first character in search string that's
+		in the re.
+	c. change the simple closure operators to use the match count technique,
+		which doesn't include so many potential stack operations.
+
+	basic_regexp<>::optimize() {
+		for each character in the output code {
+			if ( current op == opchar ) {
+				next;
+			} else {
+				break;
+			}
+		}
+	}
+
+
+9. need some kind of serialize member; so that i don't have to drag iostream around
+	but i could "dump" the re matching code and rebuild it later. 
+

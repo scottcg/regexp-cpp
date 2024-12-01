@@ -1,0 +1,166 @@
+#pragma once
+
+#include <cassert>
+#include <locale>
+#include <cstring>
+#include <cwchar>
+#include <wctype.h>
+#include <string>
+#include <algorithm>
+
+template<class T>
+struct re_char_traits : public std::char_traits<T> {
+    typedef T char_type;
+    typedef typename std::char_traits<T>::int_type int_type;
+	typedef std::basic_string<T, std::char_traits<T>> string_type;
+};
+
+// Specialization for char (inherits from std::char_traits<char>)
+template<>
+struct re_char_traits<char> : public std::char_traits<char> {
+    typedef char char_type;
+    typedef std::char_traits<char>::int_type int_type;
+	typedef std::string string_type;
+    using traits_type = std::char_traits<char>;
+
+    static size_t length(const char_type *x) { return traits_type::length(x); }
+
+    static int isalpha(int_type c) { return std::isalpha(c); }
+    static int isalnum(int_type c) { return std::isalnum(c); }
+    static int isspace(int_type c) { return std::isspace(c); }
+    static int isdigit(int_type c) { return std::isdigit(c); }
+    static int islower(int_type c) { return std::islower(c); }
+    static int toupper(int_type c) { return std::toupper(c); }
+    static int tolower(int_type c) { return std::tolower(c); }
+
+    static int cstr_to_decimal_int(const char_type* s) {
+        int i = 0;
+        char_type ch = 0;
+        while (s && *s != 0 && std::isdigit(ch = *s++)) {
+            i = (i * 10) + (ch - '0');
+        }
+        return i;
+    }
+
+    static int cstr_to_octal_int(const char_type* s) {
+        int i = 0;
+        char_type ch = 0;
+        while (s && *s != 0 && std::isdigit(ch = *s++)) {
+            i = (i * 8) + (ch - '0');
+        }
+        return i;
+    }
+
+    static int cstr_to_hex_int(const char_type* s) {
+        int i = 0;
+        char_type ch = 0;
+        while (s && *s != 0 && std::isdigit(ch = *s++)) {
+            i = (i * 16) + (ch - '0');
+        }
+        return i;
+    }
+
+    static int strncmp(const char_type* s1, const char_type* s2, size_t n) {
+        return std::char_traits<char_type>::compare(s1, s2, n);
+    }
+
+    static int istrncmp(const char_type* s1, const char_type* s2, size_t n) {
+        while (n-- != 0) {
+            int_type c1 = std::tolower(*s1++);
+            int_type c2 = std::tolower(*s2++);
+            if (c1 != c2) {
+                return c1 - c2;
+            }
+            if (c1 == '\0') {
+                break;
+            }
+        }
+        return 0;
+    }
+
+    static int has_chars(const char_type* s1, const char_type* s2) {
+        const char_type* t = std::strpbrk(s1, s2);
+        return (t) ? (t - s1) : -1;
+    }
+
+    static int check(const char_type* s, size_t& n) {
+        if (n == static_cast<size_t>(-1)) {
+            n = (s) ? length(s) : 0;
+        }
+        return n;
+    }
+};
+
+template<>
+struct re_char_traits<wchar_t> : public std::char_traits<wchar_t> {
+    typedef wchar_t char_type;
+    typedef std::char_traits<char>::int_type int_type;
+	typedef std::wstring string_type;
+    using traits_type = std::char_traits<wchar_t>;
+
+    static size_t length(const char_type *s) { return traits_type::length(s); }
+    static int isalpha(int_type c) { return std::iswalpha(c); }
+    static int isalnum(int_type c) { return std::iswalnum(c); }
+    static int isspace(int_type c) { return std::iswspace(c); }
+    static int isdigit(int_type c) { return std::iswdigit(c); }
+    static int islower(int_type c) { return std::iswlower(c); }
+    static int toupper(int_type c) { return std::towupper(c); }
+    static int tolower(int_type c) { return std::towlower(c); }
+
+    static int cstr_to_decimal_int(const char_type* s) {
+        int i = 0;
+        char_type ch = 0;
+        while (s && *s != 0 && std::iswdigit(ch = *s++)) {
+            i = (i * 10) + (ch - L'0');
+        }
+        return i;
+    }
+
+    static int cstr_to_octal_int(const char_type* s) {
+        int i = 0;
+        char_type ch = 0;
+        while (s && *s != 0 && std::iswdigit(ch = *s++)) {
+            i = (i * 8) + (ch - L'0');
+        }
+        return i;
+    }
+
+    static int cstr_to_hex_int(const char_type* s) {
+        int i = 0;
+        char_type ch = 0;
+        while (s && *s != 0 && std::iswdigit(ch = *s++)) {
+            i = (i * 16) + (ch - L'0');
+        }
+        return i;
+    }
+
+    static int strncmp(const char_type* s1, const char_type* s2, size_t n) {
+        return std::wcsncmp(s1, s2, n);
+    }
+
+    static int istrncmp(const char_type* s1, const char_type* s2, size_t n) {
+        while (n-- != 0) {
+            int_type c1 = std::towlower(*s1++);
+            int_type c2 = std::towlower(*s2++);
+            if (c1 != c2) {
+                return c1 - c2;
+            }
+            if (c1 == L'\0') {
+                break;
+            }
+        }
+        return 0;
+    }
+
+    static int has_chars(const char_type* s1, const char_type* s2) {
+        const char_type* t = std::wcspbrk(s1, s2);
+        return (t) ? (t - s1) : -1;
+    }
+
+    static int check(const char_type* s, size_t& n) {
+        if (n == static_cast<size_t>(-1)) {
+            n = (s) ? length(s) : 0;
+        }
+        return n;
+    }
+};
