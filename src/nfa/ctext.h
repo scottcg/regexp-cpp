@@ -1,7 +1,4 @@
-
-#ifndef INCLUDE_CTEXT_H
-#define INCLUDE_CTEXT_H
-
+#pragma once
 
 /////////////////////////////////////////////////////////////////////////////
 // a small template clas to handle the peculiarities of having two strings passed to the
@@ -296,5 +293,3 @@ inline bool ctext<strT>::compare(int begin, int end, int_type& ch) {
 	}
 	return true;
 }
-
-#endif

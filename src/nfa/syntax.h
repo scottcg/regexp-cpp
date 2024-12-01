@@ -1,7 +1,5 @@
-// $Header: /regexp/syntax.h 1     2/22/97 6:04p Scg $
+#pragma once
 
-#ifndef INCLUDE_SYNTAX_H
-#define INCLUDE_SYNTAX_H
 
 /////////////////////////////////////////////////////////////////////////////////////
 // these inlines are taking advantage of c++'s overloading; since i'll be using both
@@ -9,18 +7,18 @@
 // rather than embedding some other kind of complication specializations.
 
 inline int is_a_alpha(int c)		{ return isalpha(c); }
-inline int is_a_alpha(wint_t c)		{ return iswalpha(c); }
+//inline int is_a_alpha(wint_t c)		{ return iswalpha(c); }
 inline int is_a_alnum(int c)		{ return isalnum(c); }
-inline int is_a_alnum(wint_t c)		{ return iswalnum(c); }
+//inline int is_a_alnum(wint_t c)		{ return iswalnum(c); }
 inline int is_a_space(int c)		{ return isspace(c); }
-inline int is_a_space(wint_t c)		{ return iswspace(c); }
+//inline int is_a_space(wint_t c)		{ return iswspace(c); }
 inline int is_a_digit(int c)		{ return isdigit(c); }
-inline int is_a_digit(wint_t c)		{ return iswdigit(c); }
+//inline int is_a_digit(wint_t c)		{ return iswdigit(c); }
 inline int is_a_lower(int c)		{ return islower(c); }
-inline int is_a_lower(wint_t c)		{ return iswlower(c); }
+//inline int is_a_lower(wint_t c)		{ return iswlower(c); }
 
 inline int to_a_upper(int c)		{ return toupper(c); }
-inline int to_a_upper(wint_t c)	{ return towupper(c); }
+//inline int to_a_upper(wint_t c)	{ return towupper(c); }
 
 // i really *really* want to get rid of these calls to sscanf so that i can drop
 // #include <stdio.h> from the compiles; for now these are fine, but they must go.
@@ -61,6 +59,7 @@ inline int cstr_to_hex_int(wchar_t* s) {
 	return i;
 }
 
+#if scg
 inline int string_n_compare(const char* s1, const char* s2, size_t n) {
 	return _strncoll(s1, s2, n);
 }
@@ -76,6 +75,7 @@ inline int istring_n_compare(const char* s1, const char* s2, size_t n) {
 inline int istring_n_compare(const wchar_t* s1, const wchar_t* s2, size_t n) {
 	return _wcsnicoll(s1, s2, n);
 }
+#endif
 
 inline int has_chars(const char* s1, const char* s2) {
 	const char* t = strpbrk(s1, s2);
@@ -225,5 +225,3 @@ private:
 	compile_state_base(const compile_state_base&);
 	const compile_state_base& operator = (const compile_state_base&);
 };
-
-#endif

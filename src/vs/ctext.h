@@ -42,6 +42,7 @@ namespace  re {
 			return *m_text;
 		}
 
+
 		// returns the current position in the text; this allows you to save the
 		// current pointer position and return it later.
 		const char_type* text() const {

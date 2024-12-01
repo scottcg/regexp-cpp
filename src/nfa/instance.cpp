@@ -1,8 +1,8 @@
-// $Header: /regexp/instance.cpp 1     2/22/97 6:03p Scg $
 
 #include "regexp.cpp"
 #include "syntax.cpp"
 
+/*
 #pragma warning ( once: 4661 )
 
 #ifndef _UNICODE
@@ -44,3 +44,5 @@ template syntax_regexp< awk_syntax<wchar_t, wint_t>, std::wstring >;
 template syntax_regexp< generic_syntax<wchar_t, wint_t>, std::wstring >;
 
 #endif
+
+ */

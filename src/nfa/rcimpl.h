@@ -1,6 +1,4 @@
-
-#ifndef INCLUDE_rcimpl_h
-#define INCLUDE_rcimpl_h
+#pragma once
 
 /////////////////////////////////////////////////////////////////////////////////////
 // this is a "smart pointer" class that is designed to hide implementation classes
@@ -161,5 +159,3 @@ void rcimpl<T>::release() {
 		rep = 0;
 	}
 }
-
-#endif

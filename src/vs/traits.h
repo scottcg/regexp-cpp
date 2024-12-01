@@ -16,7 +16,7 @@ struct re_char_traits : std::char_traits<T> {
 template<>
 struct re_char_traits<char> : std::char_traits<char> {
     using traits_type = std::char_traits<char>;
-	typedef std::basic_string<char, std::char_traits<char>> string_type;
+	typedef std::basic_string<char> string_type;
 
     static size_t length(const char_type *x) { return traits_type::length(x); }
 

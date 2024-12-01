@@ -5,8 +5,6 @@
 #include "precedence.h"
 
 namespace re {
-	//template <class traitsType> class re_compile_state;
-
 	///////////////////////////////////////////////////////////////////////////////////////////////
 	// the re_code_vec is like a smart vector, it's used to store the compiled
 	// regular expression. it provides some simple member functions to store operations

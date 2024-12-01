@@ -13,20 +13,6 @@ lex, sed, python i kinda like lex since it has that neat precedence with
 namespace re {
 	template<class traitsType> class re_code_vec;
 
-	///////////////////////////////////////////////////////////////////////////////////////////
-	// each regular expression syntax is subclassed from this. the engine isn't completely
-	// (or nearly?) general enough to do whatever you want with regular expressions -- it was my
-	// impression that almost no one would be interested in writing new syntax classes to deal
-	// with different regular expression syntaxes.
-	//
-	// none of these classes contain cctor or assignment operators; since all of the derived
-	// classes (other than syntax_fast_all) don't have any data members they "work" exactly the
-	// same (thus static const objects of those classes is what i was planning to use).
-
-	// forward declaration for parameter to re_syntax_base. this is a implementation class (see
-	// syntax.h for definition) that's only interesting if you are writing a new re_syntax_base
-	// derived class.
-
 	template<class traitsType>
 	class re_syntax_base {
 	public:
@@ -37,7 +23,6 @@ namespace re {
 		typedef typename traits_type::int_type int_type;
 		typedef re_compile_state<traitsType> re_compile_state_type;
 
-	public:
 		virtual bool context_independent_ops() const { return false; }
 
 		virtual int precedence(int op) const { return 0; }

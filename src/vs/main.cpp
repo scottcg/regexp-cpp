@@ -6,6 +6,7 @@
 #include "engine.h"
 
 using namespace re;
+using namespace std;
 
 
 class Test {
@@ -179,11 +180,59 @@ void test_precedence_stack() {
     assert(stack.start() == 10);
 }
 
-// Example usage in main.cpp
-void test_basic_regular_expression() {
+void test_traits() {
     std::wcout << re_char_traits<char>::length("Hello") << std::endl;
     std::wcout << re_char_traits<char>::isdigit('0') << std::endl;
     std::wcout << re_char_traits<char>::isdigit('A') << std::endl;
+}
+
+void test_basic_expression() {
+    cout << endl << "Testing compile" << endl;
+    using my_traits = re_char_traits<char>;
+
+    re_engine< generic_syntax<my_traits>> engine;
+    cout << "Created re_engine" << endl;
+    auto const compileResult = engine.exec_compile("dog*");
+    cout << "Compile result: " << compileResult << endl;
+    engine.dump_code();
+}
+
+void test_perl() {
+    cout << endl << "Testing compile" << endl;
+    using my_traits = re_char_traits<char>;
+
+#if 0
+    generic_syntax<my_traits> syntax;
+    cout << "Created generic_syntax" << endl;
+
+    re_code_vec<my_traits> code;
+    cout << "Creating re_compile_state" << endl;
+
+    re_input_string<my_traits> input("[Hh]ello, [Ww]orld");
+    cout << "Input string length: " << input.length() << endl;
+
+    re_compile_state cs(syntax, code, input);
+    cout << "Created re_compile_state" << endl;
+
+    const auto result = syntax.compile(cs);
+    cout << "Compile result: " << result << endl;
+#endif
+
+    re_engine<perl_syntax<my_traits>> engine;
+    cout << "Created re_engine" << endl;
+    auto const compileResult = engine.exec_compile("[Hh]+ello, [Ww]?orld");
+    cout << "Compile result: " << compileResult << endl;
+    engine.dump_code();
+
+    re_ctext<my_traits> text("Hello, World!");
+    //auto const searchResult = engine.exec_search(text);
+    //cout << "Search result: " << searchResult << endl;
+
+    //auto const matchResult = engine.exec_match(text);
+    //cout << "Match result: " << matchResult << endl;
+}
+
+void test_basic_regular_expression() {
 
     using my_traits = re_char_traits<char>;
 
@@ -257,7 +306,10 @@ int main() {
     test_char_traits();
     test_wchar_traits();
 
-    test_basic_regular_expression();
+    test_basic_expression();
+    test_perl();
+
+    //test_basic_regular_expression();
 
     //re_compile_state<re_char_traits<char>> validState();    // OK
     //re_compile_state<re_char_traits<wchar_t>> validStateW;

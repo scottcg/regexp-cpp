@@ -1,0 +1,10 @@
+
+get rid of match static collection of engine/regex - move to compile state
+
+compile state re_compile_state
+  compiled_expression job or task
+
+  really nice to get rid of thing and save the state in engine
+
+  re_engine -> basic_engine
+  get rid of this static const re_match_vector	default_matches;

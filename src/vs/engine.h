@@ -153,13 +153,13 @@ namespace re {
 			*err_pos = 0;	// be optimistic, set err_pos to 0.
 		}
 
-		if ( s == 0 ) {		
+		if ( s == nullptr ) {
 			return 0;		// garbage in, nothing out.
 		}
 
 		traits_type::check(s, slen);					// calculate slen if user passed default
+
 		source_vector_type source(s, slen);
-		
 		compile_state_type cs(syntax, code, source);	// let syntax obj do the work.
 
 		syntax_error_state = cs.syntax.compile(cs);		// perform the compilation
@@ -169,10 +169,9 @@ namespace re {
 				*err_pos = cs.input.offset();			// where the error occurred.
 			}
 			return syntax_error_state;					// return pos in string where error occurred
-		} else {
-			assert(cs.jump_stack.size() == 0);
-			using_backrefs = cs.number_of_backrefs;		// remember number of backrefs.
 		}
+		assert(cs.jump_stack.size() == 0);
+		using_backrefs = cs.number_of_backrefs;		// remember number of backrefs.
 		return 0;										// no error
 	}
 
@@ -536,6 +535,7 @@ namespace re {
 					}
 					runtime_backref_stack& s = bs[ref - 1];
 
+				// scg alt: if ( text.compare(s.back().first, s.back().second, ch) == false ) {
 					if ( text.has_substring(s.back().first, s.back().second, ch) == false ) {
 						break;
 					}
@@ -644,7 +644,7 @@ namespace re {
 				}
 				continue;
 
-	#if notdone
+	#if !notdone
 			case OP_BEGIN_OF_BUFFER:
 				if ( text.buffer_begin() ) continue;
 				break;
@@ -671,7 +671,7 @@ namespace re {
 					continue;
 				}
 				continue;
-	#if notdone
+	#if !notdone
 			case OP_WORD_BOUNDARY:	// match at begin/end of strings (buffer) ok.
 				if ( *code_ptr ) {	// complement
 					if ( text.at_begin() || text.word_test() ) break;
@@ -804,7 +804,9 @@ namespace re {
 		if ( range == 0 ) {
 			range = text.length();
 		}
-		//int dir = (range < 0) ? -1 : 1;
+#if !notdone
+		int dir = (range < 0) ? -1 : 1;
+#endif
 		if ( range < 0 ) {
 			range = -range;
 		}
@@ -814,7 +816,7 @@ namespace re {
 
 		const typename code_vector_type::code_type* code_ptr = code.code();
 
-	#if notdone
+	#if !notdone
 		for ( int pos = text.start(); range >= 0; range--, pos += dir ) {
 			text.start(pos);
 			const char_type* partstart = 0;

@@ -39,7 +39,7 @@ public:
 	typedef strType							string_type;
 	typedef typename strType::traits_type::char_type	char_type;
 	typedef typename strType::traits_type::int_type	int_type;
-	typedef typename compile_state_base<strType>		compile_state_type;
+	typedef compile_state_base<strType>		compile_state_type;
 
 public:
 	syntax_base();
@@ -78,6 +78,7 @@ public:
 template <class strType>
 class generic_syntax : public syntax_base<strType> {
 public:
+	typedef compile_state_base<strType>		compile_state_type;
 	virtual bool context_independent_ops() const;
 
 	virtual int translate_plain_op(compile_state_type&) const;
@@ -106,6 +107,7 @@ public:
 template <class strType>
 class grep_syntax : public generic_syntax<strType> {
 public:
+	typedef compile_state_base<strType>		compile_state_type;
 	virtual bool context_independent_ops() const;
 
 	virtual bool incomplete_eoi(compile_state_type& cs) const;
@@ -135,6 +137,7 @@ public:
 template <class strType>
 class egrep_syntax : public generic_syntax<strType> {
 public:
+	typedef compile_state_base<strType>		compile_state_type;
 	virtual bool context_independent_ops() const;
 
 	virtual bool incomplete_eoi(compile_state_type& cs) const;
@@ -187,6 +190,7 @@ class awk_syntax : public egrep_syntax<strType> {};
 template <class strType>
 class perl_syntax : public awk_syntax<strType> {
 public:
+	typedef compile_state_base<strType>		compile_state_type;
 	virtual bool incomplete_eoi(compile_state_type& cs) const;
 	virtual int compile_opcode(compile_state_type& cs) const;
 	virtual int translate_plain_op(compile_state_type& cs) const;
