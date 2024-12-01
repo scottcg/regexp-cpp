@@ -15,7 +15,7 @@ namespace re {
 
 	constexpr int INC_SIZE = 16;	// starting/increment size for the code array.
 
-	template <class traitsT> class re_code_vec {
+	template <class traitsT> class compiled_code_vector {
 	public:
 		typedef traitsT						traits_type;
 		typedef typename traits_type::char_type		char_type;
@@ -24,90 +24,90 @@ namespace re {
 		typedef re_compile_state<traitsT> compile_state_type;
 
 	public:
-		re_code_vec(int n = INC_SIZE)  : m_size(n) {
-			m_offset = 0;
-			m_vector = 0;
-			if ( m_size > 0 ) {
-				m_vector = new code_type [ m_size ];
+		compiled_code_vector(int n = INC_SIZE)  : _size(n) {
+			_offset = 0;
+			_code_vector = 0;
+			if ( _size > 0 ) {
+				_code_vector = new code_type [ _size ];
 				initialize();
 			}
 		}
 
-		re_code_vec(const re_code_vec& rhs) {
-			m_offset = 0;
-			m_vector = 0;
-			m_size = 0;
+		compiled_code_vector(const compiled_code_vector& rhs) {
+			_offset = 0;
+			_code_vector = 0;
+			_size = 0;
 			operator = (rhs);
 		}
 
-		re_code_vec& operator = (const re_code_vec& rhs) {
+		compiled_code_vector& operator = (const compiled_code_vector& rhs) {
 			if ( this != &rhs ) {
-				m_offset = rhs.m_offset;
-				delete [] m_vector;
-				m_vector = 0;
-				if ( (m_size = rhs.m_size) > 0 ) {
-					m_vector = new code_type [ m_size ];
-					memcpy(m_vector, rhs.m_vector, sizeof(code_type) * m_size);
+				_offset = rhs._offset;
+				delete [] _code_vector;
+				_code_vector = 0;
+				if ( (_size = rhs._size) > 0 ) {
+					_code_vector = new code_type [ _size ];
+					memcpy(_code_vector, rhs._code_vector, sizeof(code_type) * _size);
 				}
 			}
 			return *this;
 		}
 
-		~re_code_vec() {
-			delete [] m_vector;
+		~compiled_code_vector() {
+			delete [] _code_vector;
 		}
 
 
 		const code_type operator [] (int i) const {
-			return m_vector[i];
+			return _code_vector[i];
 		}
 
 		code_type& operator [] (int i) {
-			if ( i > m_offset ) m_offset = i;
-			return m_vector[i];
+			if ( i > _offset ) _offset = i;
+			return _code_vector[i];
 		}
 
 	public:
 		void initialize() {	// can be called to re-initialize the object.
-			m_offset = 0;
-			if ( m_vector ) {
-				memset(m_vector, 0, sizeof(code_type) * m_size);
+			_offset = 0;
+			if ( _code_vector ) {
+				memset(_code_vector, 0, sizeof(code_type) * _size);
 			}
 		}		
 		void alloc(int n) { 	// check vector size, enlarge if necessary.
-			if ( (m_offset + n) > m_size ) {
-				n = INC_SIZE + (m_offset + n);
+			if ( (_offset + n) > _size ) {
+				n = INC_SIZE + (_offset + n);
 				code_type* p = new code_type [n];
-				if ( m_vector ) {
-					memcpy(p, m_vector, sizeof(code_type) * m_size);
-					delete [] m_vector;
+				if ( _code_vector ) {
+					memcpy(p, _code_vector, sizeof(code_type) * _size);
+					delete [] _code_vector;
 				}
-				m_size = n;
-				m_vector = p;
+				_size = n;
+				_code_vector = p;
 			}
 		}
 
 	public:
 		void store(code_type t) {
 			alloc(1);
-			assert(m_offset < m_size);
-			m_vector[m_offset++] = t;
+			assert(_offset < _size);
+			_code_vector[_offset++] = t;
 		}
 
 		void  store(code_type op, code_type flag) {
 			alloc(2);
-			m_vector[m_offset++] = op;
-			m_vector[m_offset++] = flag;
+			_code_vector[_offset++] = op;
+			_code_vector[_offset++] = flag;
 		}
 
 		void store(code_type opcode, re_precedence_stack& prec_stack) {
-			prec_stack.start(m_offset);
+			prec_stack.start(_offset);
 			alloc(1);
 			store(opcode);
 		}
 
 		void store(code_type opcode, code_type ch, re_precedence_stack& prec_stack) {
-			prec_stack.start(m_offset);
+			prec_stack.start(_offset);
 			alloc(2);
 			store(opcode);
 			store(ch);
@@ -116,27 +116,27 @@ namespace re {
 		void put_address(int off, int addr) {
 			alloc(2); // just in case
 			int dsp = addr - off - 2;
-			m_vector[off] = (code_type)(dsp & 0xFF);
-			m_vector[off + 1] = (code_type)((dsp >> 8) & 0xFF);
+			_code_vector[off] = static_cast<code_type>(dsp & 0xFF);
+			_code_vector[off + 1] = static_cast<code_type>((dsp >> 8) & 0xFF);
 		}
 
 		void store_jump(int opcode_pos, int type, int to_addr) {
 			alloc(3);
 			// move stuff down the stream, we are going to insert at pos
-			for ( int a = m_offset - 1; a >= opcode_pos; a-- ) {
-				m_vector[a + 3] = m_vector[a];
+			for ( int a = _offset - 1; a >= opcode_pos; a-- ) {
+				_code_vector[a + 3] = _code_vector[a];
 			}
-			m_vector[opcode_pos] = (code_type)(type);
+			_code_vector[opcode_pos] = static_cast<code_type>(type);
 			put_address(opcode_pos + 1, to_addr);
-			m_offset += 3;
+			_offset += 3;
 		}
 
 		int offset() const {
-			return m_offset;
+			return _offset;
 		}
 
 		const code_type* code() const {
-			return m_vector;
+			return _code_vector;
 		}
 
 		int store_alternate(compile_state_type& cs) {			// used for "A|B"
@@ -164,7 +164,7 @@ namespace re {
 
 		int store_concatenate(compile_state_type& cs) {			// used for "[^AB]"
 			// store_jump(cs.prec_stack.start(), OP_PUSH_FAILURE2, m_offset + 6);
-			store_jump(cs.prec_stack.start(), OP_PUSH_FAILURE2, m_offset + 4);
+			store_jump(cs.prec_stack.start(), OP_PUSH_FAILURE2, _offset + 4);
 			store(OP_FORWARD);
 			cs.prec_stack.start(offset());
 			store(OP_POP_FAILURE);
@@ -175,10 +175,10 @@ namespace re {
 			// do all kinds of complicated stuff to initialize the precedence stack and to set
 			// the [] to the highest precedence we can get (so that any future jumps we insert
 			// when processing the character class will be completed when we finish).
-			int start_offset = m_offset;
-			cs.prec_stack.start(m_offset);
+			int start_offset = _offset;
+			cs.prec_stack.start(_offset);
 			cs.prec_stack.current(NUM_LEVELS - 1);
-			cs.prec_stack.start(m_offset);
+			cs.prec_stack.start(_offset);
 
 			if ( cs.input.get(cs.ch) ) {			// consume the '['.
 				return -1;
@@ -253,24 +253,24 @@ namespace re {
 		void store_closure_count(compile_state_type& cs, int pos, int addr, int mi, int mx) {
 			constexpr int skip = 7;
 			alloc(skip);
-			for ( int a = m_offset - 1; a >= pos; a-- ) {
-				m_vector[a + skip] = m_vector[a];
+			for ( int a = _offset - 1; a >= pos; a-- ) {
+				_code_vector[a + skip] = _code_vector[a];
 			}
-			m_vector[pos++] = (code_type)(OP_CLOSURE);
+			_code_vector[pos++] = static_cast<code_type>(OP_CLOSURE);
 			put_address(pos, addr);
 			pos += 2;
 			put_number(pos, mi);
 			pos += 2;
 			put_number(pos, mx);
-			m_offset += skip; // 4 + 3
+			_offset += skip; // 4 + 3
 
-			store_jump(m_offset, OP_CLOSURE_INC, cs.prec_stack.start() + 3);
-			put_number(m_offset, mi);
-			m_offset += 2;
-			put_number(m_offset, mx);
-			m_offset += 2;
+			store_jump(_offset, OP_CLOSURE_INC, cs.prec_stack.start() + 3);
+			put_number(_offset, mi);
+			_offset += 2;
+			put_number(_offset, mx);
+			_offset += 2;
 
-			cs.prec_stack.start(m_offset);
+			cs.prec_stack.start(_offset);
 		}
 
 
@@ -309,7 +309,7 @@ namespace re {
 				return -1;
 			}
 
-			store_closure_count(cs, cs.prec_stack.start(), m_offset + 10, minimum, maximum);
+			store_closure_count(cs, cs.prec_stack.start(), _offset + 10, minimum, maximum);
 
 			return 0;
 		}
@@ -318,13 +318,13 @@ namespace re {
 	private:
 		void put_number(int pos, int n) {
 			alloc(2);	// just in case
-			m_vector[pos++] = (code_type)(n & 0xFF);
-			m_vector[pos] = (code_type)((n >> 8) & 0xFF);
+			_code_vector[pos++] = static_cast<code_type>(n & 0xFF);
+			_code_vector[pos] = static_cast<code_type>((n >> 8) & 0xFF);
 		}
 
-		code_type*		m_vector;
-		int				m_size;
-		int				m_offset;
-		int				m_cclass_org;
+		code_type*		_code_vector;
+		int				_size;
+		int				_offset;
+		int				_character_class_org;
 	};
 }

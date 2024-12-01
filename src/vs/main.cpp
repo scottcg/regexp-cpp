@@ -232,6 +232,54 @@ void test_perl() {
     //cout << "Match result: " << matchResult << endl;
 }
 
+#if 0
+void test_compiled_code_vector() {
+    // Create an instance of compiled_code_vector
+    compiled_code_vector<traitsT> vec;
+
+    // Check the initial offset
+    std::cout << "Initial offset: " << vec.offset() << std::endl;
+    assert(vec.offset() == 0);
+
+    // Store a single code_type value
+    vec.store(static_cast<traitsT::char_type>('A'));
+    std::cout << "Offset after storing one value: " << vec.offset() << std::endl;
+    assert(vec.offset() == 1);
+    assert(vec[0] == 'A');
+
+    // Store two code_type values
+    vec.store(static_cast<traitsT::char_type>('B'), static_cast<traitsT::char_type>('C'));
+    std::cout << "Offset after storing two values: " << vec.offset() << std::endl;
+    assert(vec.offset() == 3);
+    assert(vec[1] == 'B');
+    assert(vec[2] == 'C');
+
+    // Modify a value
+    vec[1] = static_cast<traitsT::char_type>('D');
+    std::cout << "Modified value at index 1: " << vec[1] << std::endl;
+    assert(vec[1] == 'D');
+
+    // Test put_address
+    vec.put_address(1, 10);
+    std::cout << "Value at index 1 after put_address: " << static_cast<int>(vec[1]) << std::endl;
+    std::cout << "Value at index 2 after put_address: " << static_cast<int>(vec[2]) << std::endl;
+    assert(static_cast<int>(vec[1]) == 8);
+    assert(static_cast<int>(vec[2]) == 0);
+
+    // Test store_jump
+    vec.store_jump(0, 1, 5);
+    std::cout << "Values after store_jump: ";
+    for (int i = 0; i < vec.offset(); ++i) {
+        std::cout << static_cast<int>(vec[i]) << " ";
+    }
+    std::cout << std::endl;
+
+    // Check the final offset
+    std::cout << "Final offset: " << vec.offset() << std::endl;
+    assert(vec.offset() == 6);
+}
+#endif
+
 void test_basic_regular_expression() {
 
     using my_traits = re_char_traits<char>;

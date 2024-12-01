@@ -11,7 +11,7 @@ lex, sed, python i kinda like lex since it has that neat precedence with
 #include "compile.h"
 
 namespace re {
-	template<class traitsType> class re_code_vec;
+	template<class traitsType> class compiled_code_vector;
 
 	template<class traitsType>
 	class re_syntax_base {

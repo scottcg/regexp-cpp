@@ -22,7 +22,7 @@ namespace re {
 
 	template <class T> class re_syntax_base;
 
-	template class re_code_vec< re_char_traits<char> >;
+	template class compiled_code_vector< re_char_traits<char> >;
 	//template class re_code_vec< re_char_traits<wchar_t> >;
 
 	template class generic_syntax< re_char_traits<char> >;
@@ -64,7 +64,7 @@ namespace re {
 		typedef std::vector< executing_backref >	backrefs_type;
 
 		typedef re_input_string<traits_type>		source_vector_type;
-		typedef re_code_vec<traits_type>			code_vector_type;
+		typedef compiled_code_vector<traits_type>			code_vector_type;
 		typedef re_compile_state<traits_type>		compile_state_type;
 		typedef re_ctext<traits_type>				ctext_type;
 
