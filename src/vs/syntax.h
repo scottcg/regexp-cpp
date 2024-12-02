@@ -237,10 +237,8 @@ namespace re {
 
 
 	///////////////////////////////////////////////////////////////////////////////////////////
-	// generic syntax contains the syntax code for the "comman" re that existing in all of
-	// the derived classes.
-	//
-	//  c			nonmetacharacter c
+	// generic syntax contains the syntax code for the "common" regular expressions.
+	//  c			non-metacharacter c
 	//  \c			escape sequence or literal character c
 	//  ^			beginning of string
 	//  $			end of string
@@ -265,7 +263,6 @@ namespace re {
 
 		int precedence(int op) const override;
 	};
-
 
 	///////////////////////////////////////////////////////////////////////////////////////////
 	// grep contains tagged regular expressions.
@@ -331,17 +328,6 @@ namespace re {
 		int translate_escaped_op(re_compile_state_type &cs) const override;
 	};
 
-
-	///////////////////////////////////////////////////////////////////////////////////////////
-	// awk regular expressions are almost just like egrep. like egrep, awk doesn't know
-	// anything about registers (tagged) but does allow () for grouping.
-	//
-
-	template<class traitsType>
-	class awk_syntax : public egrep_syntax<traitsType> {
-	};
-
-
 	///////////////////////////////////////////////////////////////////////////////////////////
 	// perl extensions to awk; actually extensions to awk with some grep thrown in just to
 	// muddy things up. the grep part is registers, but perl registers don't need escaping.
@@ -375,7 +361,7 @@ namespace re {
 	//  sets: so, \d\w\s\n\r\t\f\b are interpolated within a set...
 
 	template<class traitsType>
-	class perl_syntax : public awk_syntax<traitsType> {
+	class perl_syntax : public egrep_syntax<traitsType> {
 	public:
 		typedef re_compile_state<traitsType> re_compile_state_type;
 
@@ -408,7 +394,6 @@ namespace re {
 		switch (cs.ch) {
 			case '\\':
 				return TOK_ESCAPE;
-
 			case '[':
 			case ']':
 			case '^':
@@ -416,7 +401,6 @@ namespace re {
 			case '.':
 			case '*':
 				return cs.ch;
-
 			default:
 				return TOK_CHAR;
 		}
@@ -439,7 +423,6 @@ namespace re {
 			case '^':
 			case '$':
 				return 3;
-
 			default:
 				return 4;
 		}
@@ -448,7 +431,7 @@ namespace re {
 	/////////////////////////////////////////////////////////////////////////////////////
 
 	template<class traitsT>
-	bool grep_syntax<traitsT>::context_independent_ops() const { return 0; }
+	bool grep_syntax<traitsT>::context_independent_ops() const { return false; }
 
 	// grep allows threes different escaped operators, all have to do
 	// with backreferences (or tagged expressions in grep lingo).
@@ -469,16 +452,14 @@ namespace re {
 				cs.input.advance(n_digits - 1);
 				cs.ch = value;
 				return TOK_BACKREF;
-			} else {
-				return SYNTAX_ERROR;
 			}
+			return SYNTAX_ERROR;
 		}
 
 		switch (cs.ch) {
 			case '(':
 			case ')':
 				return cs.ch;
-
 			default:
 				return TOK_CHAR;
 		}
@@ -509,7 +490,7 @@ namespace re {
 
 
 	template<class traitsT>
-	bool egrep_syntax<traitsT>::context_independent_ops() const { return 0; }
+	bool egrep_syntax<traitsT>::context_independent_ops() const { return false; }
 
 	template<class traitsT>
 	bool egrep_syntax<traitsT>::incomplete_eoi(re_compile_state_type &cs) const {
@@ -532,7 +513,6 @@ namespace re {
 			case '?':
 			case '|':
 				return cs.ch;
-
 			default:
 				return generic_syntax<traitsT>::translate_plain_op(cs);
 		}
@@ -547,7 +527,6 @@ namespace re {
 			case 'r':
 			case 't':
 				return TOK_CTRL_CHAR;
-
 			default:
 				return generic_syntax<traitsT>::translate_escaped_op(cs);
 		}
@@ -557,7 +536,7 @@ namespace re {
 	/////////////////////////////////////////////////////////////////////////////////////
 
 	template<class traitsT>
-	bool perl_syntax<traitsT>::context_independent_ops() const { return 0; }
+	bool perl_syntax<traitsT>::context_independent_ops() const { return false; }
 
 	template<class traitsT>
 	int perl_syntax<traitsT>::translate_plain_op(re_compile_state_type &cs) const {
@@ -567,7 +546,7 @@ namespace re {
 				return cs.ch;
 
 			default:
-				return awk_syntax<traitsT>::translate_plain_op(cs);
+				return egrep_syntax<traitsT>::translate_plain_op(cs);
 		}
 	}
 
@@ -610,7 +589,7 @@ namespace re {
 				return TOK_CTRL_CHAR;
 
 			default:
-				return awk_syntax<traitsT>::translate_escaped_op(cs);
+				return egrep_syntax<traitsT>::translate_escaped_op(cs);
 		}
 	}
 
@@ -772,7 +751,7 @@ namespace re {
 				break;
 
 			default:
-				return awk_syntax<traitsT>::compile_opcode(cs);
+				return egrep_syntax<traitsT>::compile_opcode(cs);
 		}
 		return 0;
 	}
@@ -829,7 +808,7 @@ namespace re {
 				break;
 
 			default:
-				return awk_syntax<traitsT>::translate_cclass_escaped_op(cs);
+				return egrep_syntax<traitsT>::translate_cclass_escaped_op(cs);
 		}
 		return 0;
 	}

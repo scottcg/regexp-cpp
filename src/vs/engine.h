@@ -14,7 +14,7 @@ namespace re {
 	using std::string;
 	using std::vector;
 
-	template class re_input_string<re_char_traits<char> >;
+	template class input_string<re_char_traits<char> >;
 	//template class re_input_string< re_char_traits<wchar_t> >;
 
 	template class re_ctext<re_char_traits<char> >;
@@ -65,12 +65,11 @@ namespace re {
 		typedef executing_backref backref_type;
 		typedef std::vector<executing_backref> backrefs_type;
 
-		typedef re_input_string<traits_type> source_vector_type;
+		typedef input_string<traits_type> source_vector_type;
 		typedef compiled_code_vector<traits_type> code_vector_type;
 		typedef re_compile_state<traits_type> compile_state_type;
 		typedef re_ctext<traits_type> ctext_type;
 
-	public:
 		short anchor;
 		int syntax_error_state;
 		bool caseless_cmps;
@@ -82,14 +81,12 @@ namespace re {
 
 		static const re_match_vector default_matches;
 
-	public:
 		re_engine();
 
 		re_engine(const re_engine &that);
 
 		const re_engine &operator =(const re_engine &that);
 
-	public:
 		int exec_compile(const char_type *s, size_t slen = -1, int *err = nullptr);
 
 		int exec_match(ctext_type &text, bool partial_matches = false,
@@ -117,6 +114,7 @@ namespace re {
 		maximum_closure_stack = 4096;
 	}
 
+#if 0
 	template<class syntaxType>
 	re_engine<syntaxType>::re_engine(const re_engine<syntaxType> &that)
 		: code(that.code) {
@@ -140,6 +138,7 @@ namespace re {
 		}
 		return *this;
 	}
+#endif
 
 	/////////////////////////////////////////////////////////////////////////////
 	// compile a regular expression.

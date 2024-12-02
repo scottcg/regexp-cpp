@@ -25,7 +25,7 @@ namespace re {
         typedef typename traitsType::int_type int_type;
         typedef re_syntax_base<traitsType> syntax_type;
         typedef compiled_code_vector<traitsType> code_vector_type;
-        typedef re_input_string<traitsType> source_vector_type;
+        typedef input_string<traitsType> source_vector_type;
         typedef std::stack<int> open_backref_stack;
 
         re_compile_state(const syntax_type &syn, code_vector_type &out, source_vector_type &in)

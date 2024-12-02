@@ -1,59 +1,12 @@
 #include <iostream>
 #include <cassert>
+#include "regex.h"
 #include "source.h"
-#include "rcimpl.h"
 #include "traits.h"
 #include "engine.h"
 
 using namespace re;
 using namespace std;
-
-
-class Test {
-public:
-    explicit Test(const int value) : value(value) {}
-    int getValue() const { return value; }
-    void setValue(const int newValue) { value = newValue; }
-
-private:
-    int value;
-};
-
-void testCreation() {
-    const auto test1 = new Test(10);
-    rcimpl ptr1(test1);
-    std::cout << "Value of ptr1: " << ptr1->getValue() << std::endl;
-    assert(ptr1->getValue() == 10);
-}
-
-void testCopying() {
-    const auto test1 = new Test(10);
-    const rcimpl ptr1(test1);
-    rcimpl ptr2(ptr1);
-    std::cout << "Value of ptr2: " << ptr2->getValue() << std::endl;
-    assert(ptr2->getValue() == 10);
-}
-
-void testModification() {
-    const auto test1 = new Test(10);
-    rcimpl ptr1(test1);
-    rcimpl ptr2(ptr1);
-    ptr1->setValue(20);
-    std::cout << "Value of ptr1 after modification: " << ptr1->getValue() << std::endl;
-    std::cout << "Value of ptr2 after ptr1 modification: " << ptr2->getValue() << std::endl;
-    assert(ptr1->getValue() == 20);
-    assert(ptr2->getValue() == 20);
-}
-
-void testReferenceCount() {
-    const auto test1 = new Test(10);
-    const rcimpl ptr1(test1);
-    const rcimpl ptr2(ptr1);
-    std::cout << "Reference count of ptr1: " << ptr1.reference_count() << std::endl;
-    std::cout << "Reference count of ptr2: " << ptr2.reference_count() << std::endl;
-    assert(ptr1.reference_count() == 2);
-    assert(ptr2.reference_count() == 2);
-}
 
 void testHasSubstring() {
     const auto testString = "Hello, World!";
@@ -192,9 +145,15 @@ void test_basic_expression() {
 
     re_engine< generic_syntax<my_traits>> engine;
     cout << "Created re_engine" << endl;
-    auto const compileResult = engine.exec_compile("dog*");
+    auto compileResult = engine.exec_compile("dog*");
     cout << "Compile result: " << compileResult << endl;
     engine.dump_code();
+
+    re_engine< generic_syntax<my_traits>> engine2;
+    cout << "Testing  *.cpp" << endl;
+    compileResult = engine2.exec_compile("*.cpp");
+    cout << "Compile result: " << compileResult << endl;
+    engine2.dump_code();
 }
 
 void test_perl() {
@@ -208,7 +167,7 @@ void test_perl() {
     re_code_vec<my_traits> code;
     cout << "Creating re_compile_state" << endl;
 
-    re_input_string<my_traits> input("[Hh]ello, [Ww]orld");
+    input_string<my_traits> input("[Hh]ello, [Ww]orld");
     cout << "Input string length: " << input.length() << endl;
 
     re_compile_state cs(syntax, code, input);
@@ -284,7 +243,6 @@ void test_compiled_code_vector() {
 void test_basic_regular_expression() {
     using my_traits = re_char_traits<char>;
     re::grep_syntax<my_traits> grep_syntax;
-    re::awk_syntax<my_traits> awk_syntax;
     re::egrep_syntax<my_traits> egrep_syntax;
     re::perl_syntax<my_traits> perl_syntax;
 
@@ -319,7 +277,7 @@ void test_basic_regular_expression() {
 int main() {
     // Existing code
     const auto testString = "Hello, World!";
-    re_input_string<re_char_traits<char>> inputString(testString);
+    input_string<re_char_traits<char>> inputString(testString);
 
     std::cout << "Length of input string: " << inputString.length() << std::endl;
     assert(inputString.length() == 13);
@@ -340,10 +298,6 @@ int main() {
     std::cout << std::endl;
 
     // New test methods
-    testCreation();
-    testCopying();
-    testModification();
-    testReferenceCount();
     testHasSubstring();
     // todo testNoSubstring();
 

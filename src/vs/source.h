@@ -14,14 +14,13 @@ namespace re {
 	// the input array, like numbers control characters. this is a template
 	// class since the input can be char/wchar_t.
 
-	template <class traitsType> class re_input_string {
+	template <class traitsType> class input_string {
 	public:
 		typedef traitsType				traits_type;
 		typedef typename traitsType::char_type	char_type;
 		typedef typename traitsType::int_type	int_type;
 
-	public:
-		re_input_string(const char_type* s, size_t l = -1) {
+		explicit input_string(const char_type* s, size_t l = -1) {
 			m_str = s;
 			if ( l == static_cast<size_t>(-1)  ) {
 				l = (s) ? traits_type::length(s) : 0;
@@ -31,9 +30,8 @@ namespace re {
 		}
 
 		char_type operator [](int i) const { return m_str[i]; }
-		size_t length() const						{ return m_len; }
+		int_type length() const						{ return m_len; }
 
-	public:
 		int get(int_type& v) {					// get next char; return -1 if eof
 			if ( m_offset >= m_len ) {
 				return -1;
@@ -86,26 +84,22 @@ namespace re {
 			return nfound;
 		}
 		int offset() const		{ return m_offset; }
-		bool at_begin() const	{ return (m_offset == 0) ? true : false; }
-		bool at_end() const		{ return (m_offset == m_len) ? true : false; }
+		bool at_begin() const	{ return m_offset == 0; }
+		bool at_end() const		{ return m_offset == m_len; }
 
 		int translate_ctrl_char(int_type& ch);	// this needs to go.
 	private:
-		int hexidecimal_to_decimal(int ch);		// convert a hex to decimal
-		int get_hexidecimal_digit(int_type& h);	// these should now be functions.
+		int hexadecimal_to_decimal(int ch);		// convert a hex to decimal
+		int get_hexadecimal_digit(int_type& h);	// these should now be functions.
 
 	private:
-		const char_type*	m_str;
-		int					m_len;
-		int					m_offset;
-
-	private:
-		// re_input_string(const re_input_string&);
-		// re_input_string& operator = (const re_input_string&) const;
+		const char_type* m_str;
+		int_type m_len;
+		int m_offset;
 	};
 
 	template <class traitsType>
-	int re_input_string<traitsType>::translate_ctrl_char(int_type& ch) {
+	int input_string<traitsType>::translate_ctrl_char(int_type& ch) {
 		switch ( ch ) {
 			case 'a': case 'A':		// ^G bell
 				ch = 7;
@@ -144,7 +138,7 @@ namespace re {
 			break;
 
 			case 'x': case 'X':
-				return get_hexidecimal_digit(ch);// hex code
+				return get_hexadecimal_digit(ch);// hex code
 			break;
 
 			case '0':		// \000 octal or a register.
@@ -158,17 +152,17 @@ namespace re {
 	}
 
 	template <class traitsType>
-	int re_input_string<traitsType>::get_hexidecimal_digit(int_type& h) {
+	int input_string<traitsType>::get_hexadecimal_digit(int_type& h) {
 		int_type c;
 		int value1;
 		get(c);
-		value1 = hexidecimal_to_decimal(c);
+		value1 = hexadecimal_to_decimal(c);
 		if ( value1 == -1 ) {
 			return -1;
 		}
 
 		get(c);
-		const int value2 = hexidecimal_to_decimal(c);
+		const int value2 = hexadecimal_to_decimal(c);
 		if ( value2 == -1 ) {
 			return -1;
 		}
@@ -177,7 +171,7 @@ namespace re {
 	}
 
 	template <class traitsType>
-	int re_input_string<traitsType>::hexidecimal_to_decimal(int ch) {
+	int input_string<traitsType>::hexadecimal_to_decimal(int ch) {
 		if ( ch >= '0' && ch <= '9' )
 			return ch - '0';
 		if ( ch >= 'a' && ch <= 'f')

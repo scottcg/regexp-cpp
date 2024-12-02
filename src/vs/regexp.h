@@ -5,7 +5,6 @@
 #include "concepts.h"
 #include "traits.h"
 #include "ctext.h"
-#include "rcimpl.h"
 
 ///////////////////////////////////////////////////////////////////////////////////////////
 // class description ---
@@ -42,111 +41,101 @@
 //  value (instead i'm using std::string's everywhere).
 //
 
-// forward declarations for classes we are going to need in basic_regular_expression.
-template <class syntaxType> class re_engine;
-template <class traitsType> class syntax_base;
-
 
 namespace re {
-	// when returning backreference matches, these are the classes used to do that
+	template <class syntaxType> class re_engine;
+	template <class traitsType> class syntax_base;
 	typedef std::pair<int, int>			re_match_type;
 	typedef std::vector<re_match_type>	re_match_vector;
 
-
-	template <class synType> class basic_regular_expression {
+	template <class syntaxType> class basic_regular_expression {
 	public:
-		typedef synType						syntax_type;
+		typedef syntaxType						syntax_type;
 		typedef typename syntax_type::traits_type	traits_type;
 		typedef typename traits_type::string_type	string_type;
 		typedef typename traits_type::int_type		int_type;
 		typedef typename traits_type::char_type		char_type;
 		typedef re_ctext<traits_type>		ctext_type;
 		typedef re_engine<syntax_type>		engine_type;
-		typedef rcimpl<engine_type>			engine_impl_type;
+		typedef std::shared_ptr<engine_type>			engine_impl_type;
 
-	public:
-		basic_regular_expression() : m_impl(new engine_type()) {}
-		basic_regular_expression(const char_type* s, size_t slen) : m_impl(new engine_type()) {
+		basic_regular_expression() : _engine(new engine_type()) {}
+		basic_regular_expression(const char_type* s, size_t slen) : _engine(new engine_type()) {
 			compile(s, slen);
 		}
 
-		basic_regular_expression(const string_type& str) : m_impl(new engine_type()) {
+		basic_regular_expression(const string_type& str) : _engine(new engine_type()) {
 			compile(str.data(), str.length());
 		}
 
-		basic_regular_expression(const basic_regular_expression& rhs) : m_impl(rhs.m_impl) {}
+		basic_regular_expression(const basic_regular_expression& rhs) : _engine(rhs._engine) {}
 
 		virtual ~basic_regular_expression() {}
 
 		const basic_regular_expression& operator = (const basic_regular_expression& rhs) {
 			if ( this != &rhs ) {
-				m_impl = rhs.m_impl;
+				_engine = rhs._engine;
 			}
 			return *this;
 		}
 
-	public:
-		void caseless_compares(bool c) { m_impl->caseless_cmps = c; }
-		void lower_caseless_compares(bool c) { m_impl->lower_caseless_cmps = c; }
-		size_t maximum_closure_stack() const { return m_impl->maximum_closure_stack; }
-		void maximum_closure_stack(size_t mx) { m_impl->maximum_closure_stack = mx; }
+		void caseless_compares(bool c) { _engine->caseless_cmps = c; }
+		void lower_caseless_compares(bool c) { _engine->lower_caseless_cmps = c; }
+		size_t maximum_closure_stack() const { return _engine->maximum_closure_stack; }
+		void maximum_closure_stack(size_t mx) { _engine->maximum_closure_stack = mx; }
 
-	public:
 		int compile(const char_type* s, size_t slen = -1, int* err_pos = 0) {
-			return m_impl->exec_compile(s, slen, err_pos);
+			return _engine->exec_compile(s, slen, err_pos);
 		}
 		int compile(const string_type& s, int* err_pos = 0) {
-			return m_impl->exec_compile(s.data(), s.length(), err_pos);
+			return _engine->exec_compile(s.data(), s.length(), err_pos);
 		}
 
-		int optimize() { return m_impl->exec_optimize(); }
+		int optimize() { return _engine->exec_optimize(); }
 
-	public:
 		int match(const char_type* s, size_t slen = -1, size_t n = -1) const {
 			ctext_type text(s, slen, 0, n);
-			return m_impl->exec_match(text);
+			return _engine->exec_match(text);
 		}
 		int match(const char_type* s, re_match_vector& m, size_t slen = -1, size_t n = -1) const {
 			ctext_type text(s, slen, 0, n);
-			return m_impl->exec_match(text, false, m);
+			return _engine->exec_match(text, false, m);
 		}
 		
 		int match(const string_type& s, size_t pos = 0, size_t n = -1) const {
 			ctext_type text(s.data(), s.length(), 0, 0, pos, n);
-			return m_impl->exec_match(text);
+			return _engine->exec_match(text);
 		}
 		int match(const string_type& s, re_match_vector& m, size_t pos = 0, size_t n = -1) const {
 			ctext_type text(s.data(), s.length(), 0, 0, pos, n);
-			return m_impl->exec_match(text, false, m);
+			return _engine->exec_match(text, false, m);
 		}
 
-	public:
 		int partial_match(const char_type* s, size_t slen = -1, size_t n = -1) const {
 			ctext_type text(s, slen, 0, 0, 0, n);
-			return m_impl->exec_match(text, true);
+			return _engine->exec_match(text, true);
 		}
 		int partial_match(const string_type& s, size_t pos = 0, size_t n = -1) const {
 			ctext_type text(s.data(), s.length(), 0, 0, pos, n);
-			return m_impl->exec_match(text, true);
+			return _engine->exec_match(text, true);
 		}
 
-	public:
 		int search(const char_type* s, size_t slen = -1, size_t n = -1) const {
 			ctext_type text(s, slen, 0, n);
-			return m_impl->exec_search(text);
+			return _engine->exec_search(text);
 		}
 		int search(const char_type* s, re_match_vector& m, size_t slen = -1, size_t n = -1) const {
 			ctext_type text(s, slen, 0, 0, n);
-			return m_impl->exec_search(text, 0, m);
+			return _engine->exec_search(text, 0, m);
 		}
 
 		int search(const string_type& s, size_t pos = 0, size_t n = -1) const {
 			ctext_type text(s.data(), s.length(), 0, 0, pos, n);
-			return m_impl->exec_search(text);
+			return _engine->exec_search(text);
 		}
 		int search(const string_type& s, re_match_vector& m, size_t pos = 0, size_t n = -1) const {
 			ctext_type text(s.data(), s.length(), 0, 0, pos, n);
-			return m_impl->exec_search(text, 0, m);
+			return _engine->exec_search(text, 0, m);
 		}
 
 	#if 0
@@ -161,6 +150,6 @@ namespace re {
 	#endif
 
 	private:
-		engine_impl_type	m_impl;
+		engine_impl_type	_engine;
 	};
 }
