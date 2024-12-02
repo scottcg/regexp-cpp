@@ -17,21 +17,21 @@ namespace re {
     // a store current precedence. did you get all of that?
 
     template<int sz>
-    class re_precedence_vec : public std::vector<int> {
+    class precedence_vec : public std::vector<int> {
     public:
-        explicit re_precedence_vec(const int init = 0) : std::vector<int>(sz, init) {
+        explicit precedence_vec(const int init = 0) : std::vector<int>(sz, init) {
         }
     };
 
-    typedef re_precedence_vec<NUM_LEVELS> re_precedence_element;
+    typedef precedence_vec<NUM_LEVELS> re_precedence_element;
 
     ///////////////////////////////////////////////////////////////////////////////////////////////
     // the actual precedence stack; adds a couple of handy members to keep track of the positions
     // in the re_precedence_element.
 
-    class re_precedence_stack : public std::stack<re_precedence_element> {
+    class precedence_stack : public std::stack<re_precedence_element> {
     public:
-        re_precedence_stack() : m_current(0) {
+        precedence_stack() : m_current(0) {
             push(re_precedence_element());
         }
 
@@ -53,5 +53,5 @@ namespace re {
     // compilation of a regular expression the future jump stack should be empty.
 
     typedef std::stack<int> re_future_jump_stack;
-    typedef re_precedence_stack re_precedence_stack;
+    typedef precedence_stack precedence_stack;
 }

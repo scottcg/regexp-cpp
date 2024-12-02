@@ -4,6 +4,8 @@
 #include "source.h"
 #include "traits.h"
 #include "engine.h"
+#include "syntax_grep.h"
+#include "syntax_perl.h"
 
 using namespace re;
 using namespace std;
@@ -61,8 +63,8 @@ void test_wchar_traits() {
 }
 
 void test_precedence_vec() {
-    // Create an instance of re_precedence_vec with default initialization
-    re_precedence_vec<NUM_LEVELS> vec;
+    // Create an instance of precedence_vec with default initialization
+    precedence_vec<NUM_LEVELS> vec;
 
     // Check the initial values
     std::cout << "Initial values: ";
@@ -87,8 +89,8 @@ void test_precedence_vec() {
 }
 
 void test_precedence_stack() {
-    // Create an instance of re_precedence_stack
-    re_precedence_stack stack;
+    // Create an instance of precedence_stack
+    precedence_stack stack;
 
     // Check the initial current precedence value
     std::cout << "Initial current precedence: " << stack.current() << std::endl;
@@ -143,7 +145,7 @@ void test_basic_expression() {
     cout << endl << "Testing test_basic_expression compile" << endl;
     using my_traits = re_char_traits<char>;
 
-    re_engine<generic_syntax<my_traits>> engine;
+    re_engine<syntax_generic<my_traits>> engine;
     cout << "Created re_engine" << endl;
     auto const simpleReg = "dog";
     auto compileResult = engine.exec_compile(simpleReg);
@@ -151,7 +153,7 @@ void test_basic_expression() {
     engine.dump_code(cout);
     cout << "where was the code?" << endl;
 
-    re_engine< generic_syntax<my_traits>> engine2;
+    re_engine< syntax_generic<my_traits>> engine2;
     cout << "Testing  *.cpp" << endl;
     compileResult = engine2.exec_compile("*.cpp");
     cout << "Compile result: " << compileResult << endl;
@@ -162,7 +164,7 @@ void test_perl() {
     cout << endl << "Testing test_perl compile" << endl;
     using my_traits = re_char_traits<char>;
 
-    re_engine<perl_syntax<my_traits>> engine;
+    re_engine<syntax_perl<my_traits>> engine;
     cout << "Created re_engine" << endl;
     auto const compileResult = engine.exec_compile("[Hh]+ello, [Ww]?orld");
     cout << "Compile result: " << compileResult << endl;
@@ -184,7 +186,7 @@ void test_perl() {
     // (.*?)(\d+)   <I have > <2>
     // (.*?)(\d+)$  <I have 2 numbers: > <53147>
 
-    re_engine<perl_syntax<my_traits>> engineForClosure;
+    re_engine<syntax_perl<my_traits>> engineForClosure;
 
     re_ctext<my_traits> text("Hello, World!");
     //auto const searchResult = engine.exec_search(text);
@@ -197,7 +199,7 @@ void test_perl() {
 void test_perl_expression() {
     cout << endl << "Testing test_perl_expression compile" << endl;
     using my_traits = re_char_traits<char>;
-    re_engine<perl_syntax<my_traits>> engine;
+    re_engine<syntax_perl<my_traits>> engine;
     auto const compileResult = engine.exec_compile("th(is|at) thing");
     cout << "Compile result: " << compileResult << endl;
     engine.dump_code(cout);
@@ -255,14 +257,31 @@ void test_compiled_code_vector() {
 
 void test_basic_regular_expression() {
     using my_traits = re_char_traits<char>;
-    re::grep_syntax<my_traits> grep_syntax;
-    re::egrep_syntax<my_traits> egrep_syntax;
-    re::perl_syntax<my_traits> perl_syntax;
+    syntax_grep<my_traits> grep_syntax;
+    syntax_egrep<my_traits> egrep_syntax;
+    syntax_perl<my_traits> perl_syntax;
 
-    re::re_engine<re::grep_syntax<my_traits>> r; // ("pattern");
+    re_engine<re::syntax_grep<my_traits>> r; // ("pattern");
     r.exec_compile("[a-c]+");
     std::string test_string = "test string";
     re_match_vector matches;
+}
+
+void test_syntax_python() {
+    cout << "text_syntax_python" << endl;
+    using my_traits = re_char_traits<char>;
+    using python_syntax_type = syntax_python<my_traits>;
+
+    re_engine<python_syntax_type> r;
+    auto expr = "[a-c]+";
+    auto compileResult = r.exec_compile("[a-c]+");
+    cout << "Compile result: " << compileResult << " expr:" << expr << endl;
+    r.dump_code(cout);
+
+    expr = "\\w{3,4}";
+    compileResult = r.exec_compile(expr);
+    cout << "Compile result: " << compileResult << " expr:" << expr << endl;
+    r.dump_code(cout);
 }
 
 int main() {
@@ -304,6 +323,8 @@ int main() {
     test_perl();
 
     test_perl_expression();
+
+    test_syntax_python();
 
     return 0;
 }

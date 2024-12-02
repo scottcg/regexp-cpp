@@ -11,7 +11,7 @@ namespace re {
         typedef typename traits_type::char_type char_type;
         typedef typename traits_type::int_type int_type;
         typedef typename traits_type::char_type code_type;
-        typedef re_compile_state<traitsT> compile_state_type;
+        typedef compile_state<traitsT> compile_state_type;
 
     public:
         compiled_code_vector() {
@@ -125,7 +125,7 @@ namespace re {
 
                 if (cs.ch == '\\') {
                     cs.input.get(cs.ch);
-                    if (cs.syntax.translate_cclass_escaped_op(cs)) {
+                    if (cs.syntax.translate_char_class_escaped_op(cs)) {
                         return SYNTAX_ERROR;
                     }
                 } else if (cs.ch == '-' && cs.input.peek() != ']') {

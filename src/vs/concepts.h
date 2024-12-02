@@ -9,6 +9,6 @@ namespace re {
     concept IsReCharTraits = std::is_same_v<T, re_char_traits<char>> ||
                              std::is_same_v<T, re_char_traits<wchar_t>>;
 
-    template <typename traitsType> requires IsReCharTraits<traitsType> class re_compile_state;
+    template <typename traitsType> requires IsReCharTraits<traitsType> class compile_state;
 
 }

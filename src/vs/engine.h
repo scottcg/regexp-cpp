@@ -7,7 +7,12 @@
 #include "traits.h"
 #include "ctext.h"
 #include "compile.h"
-#include "syntax.h"
+#include "syntax_base.h"
+#include "syntax_grep.h"
+#include "syntax_egrep.h"
+#include "syntax_generic.h"
+#include "syntax_perl.h"
+#include "syntax_python.h"
 
 namespace re {
 	using std::ostream;
@@ -21,19 +26,21 @@ namespace re {
 	//template class re_ctext< re_char_traits<wchar_t> >;
 
 	template<class T>
-	class re_syntax_base;
+	class syntax_base;
 
 	template class compiled_code_vector<re_char_traits<char> >;
 	//template class re_code_vec< re_char_traits<wchar_t> >;
 
-	template class generic_syntax<re_char_traits<char> >;
+	template class syntax_generic<re_char_traits<char> >;
 	//template class generic_syntax< re_char_traits<wchar_t> >;
 
-	template class perl_syntax<re_char_traits<char> >;
+	template class syntax_perl<re_char_traits<char> >;
 	//template class perl_syntax< re_char_traits<wchar_t> >;
 
-	typedef perl_syntax<re_char_traits<char> > perl_syntax_type;
+	typedef syntax_perl<re_char_traits<char> > perl_syntax_type;
 	//typedef perl_syntax< re_char_traits<wchar_t> > wperl_syntax_type;
+
+	typedef syntax_python<re_char_traits<char> > python_syntax_type;
 
 	typedef std::pair<int, int> re_match_type;
 	typedef vector<re_match_type> re_match_vector;
@@ -45,7 +52,7 @@ namespace re {
 
 	/////////////////////////////////////////////////////////////////////////////////
 	// re_engine<syntaxType> is hidden in here because i don't want to
-	// publicize any of the implementation in the the interface class (basic_regexp).
+	// publicize any of the implementation in the interface class (basic_regexp).
 	// i really like the technique of splitting the interface/impl in c++, i this
 	// is (imho) the best way to do that.
 	//
@@ -67,7 +74,7 @@ namespace re {
 
 		typedef input_string<traits_type> source_vector_type;
 		typedef compiled_code_vector<traits_type> code_vector_type;
-		typedef re_compile_state<traits_type> compile_state_type;
+		typedef compile_state<traits_type> compile_state_type;
 		typedef re_ctext<traits_type> ctext_type;
 
 		short anchor;

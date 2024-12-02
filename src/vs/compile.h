@@ -7,7 +7,7 @@
 
 namespace re {
     template<class traitsType>
-    class re_syntax_base;
+    class syntax_base;
 
     /////////////////////////////////////////////////////////////////////////////////////
     // compile_state contains all the interesting bits necessary to pass around when
@@ -18,17 +18,17 @@ namespace re {
 
     template<typename traitsType>
         requires IsReCharTraits<traitsType>
-    class re_compile_state {
+    class compile_state {
     public:
         typedef traitsType traits_type;
         typedef typename traitsType::char_type char_type;
         typedef typename traitsType::int_type int_type;
-        typedef re_syntax_base<traitsType> syntax_type;
+        typedef syntax_base<traitsType> syntax_type;
         typedef compiled_code_vector<traitsType> code_vector_type;
         typedef input_string<traitsType> source_vector_type;
         typedef std::stack<int> open_backref_stack;
 
-        re_compile_state(const syntax_type &syn, code_vector_type &out, source_vector_type &in)
+        compile_state(const syntax_type &syn, code_vector_type &out, source_vector_type &in)
             : op(0),
               ch(0),
               beginning_context(1),
@@ -55,7 +55,7 @@ namespace re {
         int next_backref; // next free backref number.
         open_backref_stack backref_stack; // stack for nesting backrefs.
         re_future_jump_stack jump_stack; // left open gotos.
-        re_precedence_stack prec_stack; // operator precedence stack.
+        precedence_stack prec_stack; // operator precedence stack.
 
         const syntax_type &syntax; // what is our syntax object
         source_vector_type &input; // ref to the input character stream.
