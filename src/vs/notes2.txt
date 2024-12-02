@@ -1,15 +1,35 @@
 
 namespace re {
-  struct char_traits<charTraits> : std::char_traits<T> {
+  template<class T>
+  struct char_traits : std::char_traits<T> {
+    typedef T char_type;
+    typedef typename std::char_traits<T>::int_type int_type;
+  	typedef std::basic_string<T> string_type;
+  };
+
+  // Specialization for char (inherits from std::char_traits<char>)
+  template<>
+  struct char_traits<char> : std::char_traits<char> {
+      using traits_type = std::char_traits<char>;
+  	typedef std::basic_string<char> string_type;
+
+      static size_t length(const char_type *x) { return traits_type::length(x); }
   }
 
   template <class charTraits> class compiled_code_vector {
   }
 
-  syntax_compiler_base<charTraits>
+  template <class charTraits> class compiled_expression {
+    // compiled_code_vector<charTraits> code;
+    // precedence_stack<charTraits> precedence;
+  }
+
+  template <class charTraits>
+  class syntax_compiler_base<charTraits>
     std::tuple<int, code_vector<charTraits>> compile(string_type s)
 
-  perl_syntax_compiler<charTraits> : syntax_compiler_base<charTraits> {
+  template<class traitsType>
+  	class perl_syntax_compiler<charTraits> : public syntax_compiler_base<charTraits> {
     public:
       std::tuple<int, code_vector<charTraits>> compile(string_type s) {
         return std::make_tuple(-1, new code_vector[]);
@@ -20,7 +40,7 @@ namespace re {
 using namespace re;
 
 int main() {
-  using my_traits = char_traits<char>;
+  using traits_type = std::char_traits<char>;
   perl_syntax_compiler<my_traits> perl;
 
   auto [result, cv] perl.compile("[Hh]ello [Ww]orld");
