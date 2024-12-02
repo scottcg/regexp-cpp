@@ -160,23 +160,6 @@ void test_perl() {
     cout << endl << "Testing compile" << endl;
     using my_traits = re_char_traits<char>;
 
-#if 0
-    generic_syntax<my_traits> syntax;
-    cout << "Created generic_syntax" << endl;
-
-    re_code_vec<my_traits> code;
-    cout << "Creating re_compile_state" << endl;
-
-    input_string<my_traits> input("[Hh]ello, [Ww]orld");
-    cout << "Input string length: " << input.length() << endl;
-
-    re_compile_state cs(syntax, code, input);
-    cout << "Created re_compile_state" << endl;
-
-    const auto result = syntax.compile(cs);
-    cout << "Compile result: " << result << endl;
-#endif
-
     re_engine<perl_syntax<my_traits>> engine;
     cout << "Created re_engine" << endl;
     auto const compileResult = engine.exec_compile("[Hh]+ello, [Ww]?orld");
@@ -202,20 +185,20 @@ void test_compiled_code_vector() {
     assert(vec.offset() == 0);
 
     // Store a single code_type value
-    vec.store(static_cast<traitsT::char_type>('A'));
+    vec.store('A');
     std::cout << "Offset after storing one value: " << vec.offset() << std::endl;
     assert(vec.offset() == 1);
     assert(vec[0] == 'A');
 
     // Store two code_type values
-    vec.store(static_cast<traitsT::char_type>('B'), static_cast<traitsT::char_type>('C'));
+    vec.store('B', 'C');
     std::cout << "Offset after storing two values: " << vec.offset() << std::endl;
     assert(vec.offset() == 3);
     assert(vec[1] == 'B');
     assert(vec[2] == 'C');
 
     // Modify a value
-    vec[1] = static_cast<traitsT::char_type>('D');
+    vec[1] = 'D';
     std::cout << "Modified value at index 1: " << vec[1] << std::endl;
     assert(vec[1] == 'D');
 
@@ -250,28 +233,6 @@ void test_basic_regular_expression() {
     r.exec_compile("[a-c]+");
     std::string test_string = "test string";
     re_match_vector matches;
-
-    // Assuming there is a method to match the regex with a string
-    //bool result = r.exec_search(test_string);
-
-    //re::basic_regular_expression<re::grep_syntax<re::generic_syntax< re_char_traits<char> >>> regex("pattern");
-    /*
-    // Create a basic_regular_expression using egrep_syntax
-    re::basic_regular_expression<re::grep_syntax<re::generic_syntax< re_char_traits<char> >>> regex("pattern");
-
-    // Test the regex object
-    std::string test_string = "test string";
-    re_match_vector matches;
-
-    // Assuming there is a method to match the regex with a string
-    bool result = regex.match(test_string, matches);
-
-    // Print the result
-    std::cout << "Match result: " << (result ? "Matched" : "Not Matched") << std::endl;
-    for (const auto& match : matches) {
-        std::cout << "Match from " << match.first << " to " << match.second << std::endl;
-    }
-    */
 }
 
 int main() {
@@ -311,11 +272,6 @@ int main() {
 
     test_basic_expression();
     test_perl();
-
-    //test_basic_regular_expression();
-
-    //re_compile_state<re_char_traits<char>> validState();    // OK
-    //re_compile_state<re_char_traits<wchar_t>> validStateW;
 
     return 0;
 }

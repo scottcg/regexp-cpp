@@ -24,9 +24,13 @@ $(TARGET): $(OBJS)
 %.o: %.cpp $(HEADERS)
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
+# Run the executable
+exec: $(TARGET)
+	./$(TARGET)
+
 # Clean up build files
 clean:
 	rm -f $(OBJS) $(TARGET)
 
 # Phony targets
-.PHONY: all clean`
+.PHONY: all clean exec

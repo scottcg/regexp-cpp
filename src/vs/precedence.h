@@ -37,7 +37,7 @@ namespace re {
 
         // current precedence value.
         int current() const { return m_current; }
-        void current(int l) { m_current = l; }
+        void current(const int l) { m_current = l; }
 
         // where we are int the input stream; index in array indicates precedence
         int start() const { return top().at(m_current); }

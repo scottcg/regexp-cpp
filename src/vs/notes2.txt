@@ -1,0 +1,29 @@
+
+namespace re {
+  struct char_traits<charTraits> : std::char_traits<T> {
+  }
+
+  template <class charTraits> class compiled_code_vector {
+  }
+
+  syntax_compiler_base<charTraits>
+    std::tuple<int, code_vector<charTraits>> compile(string_type s)
+
+  perl_syntax_compiler<charTraits> : syntax_compiler_base<charTraits> {
+    public:
+      std::tuple<int, code_vector<charTraits>> compile(string_type s) {
+        return std::make_tuple(-1, new code_vector[]);
+      }
+  }
+}
+
+using namespace re;
+
+int main() {
+  using my_traits = char_traits<char>;
+  perl_syntax_compiler<my_traits> perl;
+
+  auto [result, cv] perl.compile("[Hh]ello [Ww]orld");
+
+  cv.dump(std::out);
+}

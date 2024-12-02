@@ -178,7 +178,7 @@ namespace re {
 			return syntax_error_state; // return pos in string where error occurred
 		}
 		assert(cs.jump_stack.size() == 0);
-		using_backrefs = cs.number_of_backrefs; // remember number of backrefs.
+		using_backrefs = cs.number_of_backrefs; // remember number of back-refs.
 		return 0; // no error
 	}
 
@@ -264,13 +264,16 @@ namespace re {
 			if (maximum == -1) {
 				// we are not match counting.
 				return 1;
-			} else if (minimum == maximum && matched == minimum) {
+			}
+			if (minimum == maximum && matched == minimum) {
 				return 1;
-			} else if ((minimum == 0 && matched <= maximum)
-			           || (maximum == 0 && matched >= minimum)) {
+			}
+			if ((minimum == 0 && matched <= maximum)
+			    || (maximum == 0 && matched >= minimum)) {
 				return 1;
-			} else if ((minimum != 0 && maximum != 0)
-			           && (matched >= minimum && matched <= maximum)) {
+			}
+			if ((minimum != 0 && maximum != 0)
+			    && (matched >= minimum && matched <= maximum)) {
 				return 1;
 			}
 			return 0;
@@ -280,9 +283,11 @@ namespace re {
 			assert(maximum != -1 && minimum != -1); // don't call this unless counting.
 			if (minimum == maximum && matched < minimum) {
 				return 1;
-			} else if ((minimum != 0 && maximum != 0) && matched < maximum) {
+			}
+			if ((minimum != 0 && maximum != 0) && matched < maximum) {
 				return 1;
-			} else if ((minimum == 0 && matched < maximum) || maximum == 0) {
+			}
+			if ((minimum == 0 && matched < maximum) || maximum == 0) {
 				return 1;
 			}
 			return 0;
@@ -304,7 +309,7 @@ namespace re {
 	/////////////////////////////////////////////////////////////////////////////
 	// matching function
 	//
-	// this member will search for a match in the catenation (or just the str1)
+	// this member will search for a match in the concatenation (or just the str1)
 	// of two strings starting at pos (within str1 or str1 + str2).
 	// pos is the starting position in str1 + str2 (i.e. it can be > length
 	// of str1). pos_stop is the stop position of (i.e. max length of search).
@@ -321,7 +326,7 @@ namespace re {
 	//	if you pass -1 for pos_stop is will be set to len1 + len2.
 	//
 	// returns:
-	//   >0 to indicate the length in characters for a succesful match
+	//   >0 to indicate the length in characters for a successful match
 	//   -1 to indicate an unsuccessful match
 	//   -2 to indicate an error, either stack overflow or a bogus re that passed
 	//		the compiler.
@@ -333,13 +338,13 @@ namespace re {
 	inline int decode_address_and_advance(const char *&cp) {
 		short r = *cp++;
 		r |= *cp++ << 8;
-		return static_cast<int>(r);
+		return r;
 	}
 
 	inline int decode_address_and_advance(const wchar_t *&cp) {
 		wint_t r = *cp++;
 		r |= *cp++ << 8;
-		return static_cast<int>(r);
+		return r;
 	}
 
 	typedef std::pair<int, int> runtime_backref;
@@ -535,8 +540,8 @@ namespace re {
 					} else {
 						s.push_back(runtime_backref(s.back().first, text.position()));
 					}
-				}
 					continue;
+				}
 
 				case OP_BACKREF: {
 					int ref = *code_ptr++;
@@ -550,8 +555,8 @@ namespace re {
 					if (text.has_substring(s.back().first, s.back().second, ch) == false) {
 						break;
 					}
-				}
 					continue;
+				}
 
 				case OP_GOTO:
 					code_ptr += decode_address_and_advance(code_ptr);
@@ -565,22 +570,22 @@ namespace re {
 					if (maximum_closure_stack < ms.size()) return -2;
 					ms.push(re_match_closure(code_ptr + addr1 + 3));
 					code_ptr += addr0;
-				}
 					continue;
+				}
 
 				case OP_PUSH_FAILURE2: {
 					int addr = decode_address_and_advance(code_ptr);
 					if (maximum_closure_stack < ms.size()) return -2;
 					ms.push(re_match_closure(code_ptr + addr));
-				}
 					continue;
+				}
 
 				case OP_PUSH_FAILURE: {
 					int addr = decode_address_and_advance(code_ptr); // offset to goto
 					if (maximum_closure_stack < ms.size()) return -2;
 					ms.push(re_match_closure(code_ptr + addr, text.text()));
-				}
 					continue;
+				}
 
 				case OP_POP_FAILURE:
 					if (ms.top().failure()) ms.pop();
@@ -599,8 +604,8 @@ namespace re {
 						return -2;
 					}
 					ms.push(re_match_closure(code_ptr + addr, text.text(), mi, mx));
-				}
 					continue;
+				}
 
 				case OP_CLOSURE_INC: {
 					int my_addr = code_ptr - code.code(); // index into map (unique)
@@ -619,15 +624,14 @@ namespace re {
 
 					int n_matches = 1;
 
-					match_count_vector::iterator it = mv.begin();
+					auto it = mv.begin();
 					if (mv.size()) {
 						while (it != mv.end()) {
 							if ((*it).first == my_addr) {
 								n_matches = (*it).second + 1;
 								break;
-							} else {
-								it++;
 							}
+							it++;
 						}
 					}
 
@@ -652,8 +656,8 @@ namespace re {
 					m.code = code_ptr;
 					code_ptr += addr;
 					ms.push(m);
-				}
 					continue;
+				}
 
 #if !notdone
 				case OP_BEGIN_OF_BUFFER:
@@ -665,33 +669,40 @@ namespace re {
 					break;
 #endif
 
-				case OP_BEGIN_OF_WORD:
+				case OP_BEGIN_OF_WORD: {
 					if (text.at_end()) {
 						break;
-					} else if (text.at_begin() || traits_type::isalnum(static_cast<int_type>(text[-1])) == 0) {
+					}
+					if (text.at_begin() || traits_type::isalnum(static_cast<int_type>(text[-1])) == 0) {
 						continue;
 					}
-					break;
+				}
+				break;
 
-				case OP_END_OF_WORD:
+				case OP_END_OF_WORD: {
 					if (text.at_begin() || traits_type::isalnum(text[-1]) == 0) {
 						break;
-					} else if (traits_type::isalnum(*text) != 0) {
+					}
+					if (traits_type::isalnum(*text) != 0) {
 						break;
-					} else if (text.at_end()) {
+					}
+					if (text.at_end()) {
 						continue;
 					}
 					continue;
+				}
+
 #if !notdone
 				case OP_WORD_BOUNDARY: // match at begin/end of strings (buffer) ok.
+				{
 					if (*code_ptr) {
 						// complement
 						if (text.at_begin() || text.word_test()) break;
 						continue;
-					} else {
-						if (text.at_begin() || text.word_test()) continue;
-						break;
 					}
+					if (text.at_begin() || text.word_test()) continue;
+					break;
+				}
 #endif
 
 				case OP_DIGIT:
@@ -720,7 +731,7 @@ namespace re {
 			} // end switch
 
 			// we should only get here when we break out of the above
-			// switch, that is, a break above implys a failure.
+			// switch, that is, a break above imply a failure.
 			fail = true;
 			while (fail == true) {
 				if (ms.empty() == false) {
@@ -742,7 +753,7 @@ namespace re {
 					// now cleanup the backreference stack.
 					if (bs.size()) {
 						// we have some backreferences
-						runtime_backref_stack_vector::iterator it = bs.begin();
+						auto it = bs.begin();
 						int p = text.position();
 						while (it != bs.end()) {
 							while ((*it).size()) {
@@ -750,9 +761,8 @@ namespace re {
 									if ((*it).size() == 1) {
 										(*it).back().second = -1;
 										break;
-									} else {
-										(*it).pop_back();
 									}
+									(*it).pop_back();
 								} else {
 									break;
 								}
@@ -761,10 +771,9 @@ namespace re {
 						}
 					}
 					break;
-				} else {
-					continue_matching = false; // this is basically "return -1;"
-					break;
 				}
+				continue_matching = false; // this is basically "return -1;"
+				break;
 			} // while ( fail )
 		} // while ( continue_matching )
 
@@ -783,7 +792,7 @@ namespace re {
 	/////////////////////////////////////////////////////////////////////////////
 	// searching method
 	//
-	// this member will search the catenation (or just the str1) of two strings
+	// this member will search the concatenation (or just the str1) of two strings
 	// starting at pos (within str1 or str1 + str2). range is the number
 	// of characters in the strings to attempt a match (this can be negative to
 	// indicate that you'd like to search backwards). pos_stop is ending character
@@ -857,7 +866,8 @@ namespace re {
 				}
 
 				return pos;
-			} else if (ret < -1) {
+			}
+			if (ret < -1) {
 				return ret;
 			}
 		}
