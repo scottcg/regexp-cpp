@@ -39,7 +39,7 @@ namespace re {
         int current() const { return m_current; }
         void current(const int l) { m_current = l; }
 
-        // where we are int the input stream; index in array indicates precedence
+        // where we are in the input stream; index in array indicates precedence
         int start() const { return top().at(m_current); }
         void start(const int offset) { top().at(m_current) = offset; }
 

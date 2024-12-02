@@ -97,7 +97,7 @@ namespace re {
 		int exec_search(ctext_type &text, int range = 0,
 		                re_match_vector &m = const_cast<re_match_vector &>(default_matches)) const;
 
-		void dump_code() const;
+		void dump_code(std::ostream& out) const;
 	};
 
 
@@ -883,8 +883,7 @@ namespace re {
 #include <iostream>
 
 	template<class syntaxType>
-	void re_engine<syntaxType>::dump_code() const {
-		std::ostream &out = std::cerr;
+	void re_engine<syntaxType>::dump_code(std::ostream& out) const {
 		const char_type *cp = code.code();
 		int pos = 0;
 		while ((pos = (cp - code.code())) < code.offset()) {

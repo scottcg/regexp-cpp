@@ -140,31 +140,33 @@ void test_traits() {
 }
 
 void test_basic_expression() {
-    cout << endl << "Testing compile" << endl;
+    cout << endl << "Testing test_basic_expression compile" << endl;
     using my_traits = re_char_traits<char>;
 
-    re_engine< generic_syntax<my_traits>> engine;
+    re_engine<generic_syntax<my_traits>> engine;
     cout << "Created re_engine" << endl;
-    auto compileResult = engine.exec_compile("dog*");
-    cout << "Compile result: " << compileResult << endl;
-    engine.dump_code();
+    auto const simpleReg = "dog";
+    auto compileResult = engine.exec_compile(simpleReg);
+    cout << "Compile result: " << simpleReg << "  " << compileResult << endl;
+    engine.dump_code(cout);
+    cout << "where was the code?" << endl;
 
     re_engine< generic_syntax<my_traits>> engine2;
     cout << "Testing  *.cpp" << endl;
     compileResult = engine2.exec_compile("*.cpp");
     cout << "Compile result: " << compileResult << endl;
-    engine2.dump_code();
+    engine2.dump_code(cout);
 }
 
 void test_perl() {
-    cout << endl << "Testing compile" << endl;
+    cout << endl << "Testing test_perl compile" << endl;
     using my_traits = re_char_traits<char>;
 
     re_engine<perl_syntax<my_traits>> engine;
     cout << "Created re_engine" << endl;
     auto const compileResult = engine.exec_compile("[Hh]+ello, [Ww]?orld");
     cout << "Compile result: " << compileResult << endl;
-    engine.dump_code();
+    engine.dump_code(cout);
 
     re_ctext<my_traits> text("Hello, World!");
     //auto const searchResult = engine.exec_search(text);

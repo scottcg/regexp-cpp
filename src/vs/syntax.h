@@ -82,15 +82,18 @@ namespace re {
 		virtual int compile_opcode(re_compile_state_type &cs) const {
 			switch (cs.op) {
 				case TOK_END:
-					cs.output.store(OP_END, cs.prec_stack);
+					// cs.output.store(OP_END, cs.prec_stack);
+					cs.prec_stack.start(cs.output.store(OP_END));
 					break;
 
 				case TOK_CHAR:
-					cs.output.store(OP_CHAR, cs.ch, cs.prec_stack);
+					//remove cs.output.store(OP_CHAR, cs.ch, cs.prec_stack);
+						cs.prec_stack.start(cs.output.store(OP_CHAR, cs.ch));
 					break;
 
 				case '.':
-					cs.output.store(OP_ANY_CHAR, cs.prec_stack);
+					//remove cs.output.store(OP_ANY_CHAR, cs.prec_stack);
+						cs.prec_stack.start(cs.output.store(OP_ANY_CHAR));
 					break;
 
 				case '^':
@@ -98,11 +101,13 @@ namespace re {
 						if (context_independent_ops()) {
 							return ILLEGAL_OPERATOR;
 						} else {
-							cs.output.store(OP_CHAR, cs.ch, cs.prec_stack);
+							// remove cs.output.store(OP_CHAR, cs.ch, cs.prec_stack);
+							cs.prec_stack.start(cs.output.store(OP_CHAR, cs.ch));
 							break;
 						}
 					}
-					cs.output.store(OP_BEGIN_OF_LINE, cs.prec_stack);
+					// remove cs.output.store(OP_BEGIN_OF_LINE, cs.prec_stack);
+					cs.prec_stack.start(cs.output.store(OP_BEGIN_OF_LINE));
 					break;
 
 				case '$':
@@ -110,11 +115,13 @@ namespace re {
 						if (context_independent_ops()) {
 							return ILLEGAL_OPERATOR;
 						} else {
-							cs.output.store(OP_CHAR, cs.ch, cs.prec_stack);
+							// remove cs.output.store(OP_CHAR, cs.ch, cs.prec_stack);
+							cs.prec_stack.start(cs.output.store(OP_CHAR, cs.ch));
 							break;
 						}
 					}
-					cs.output.store(OP_END_OF_LINE, cs.prec_stack);
+					// remove cs.output.store(OP_END_OF_LINE, cs.prec_stack);
+					cs.prec_stack.start(cs.output.store(OP_END_OF_LINE));
 					break;
 
 				case '?':
@@ -124,7 +131,8 @@ namespace re {
 						if (context_independent_ops()) {
 							return ILLEGAL_OPERATOR;
 						} else {
-							cs.output.store(OP_CHAR, cs.ch, cs.prec_stack);
+							// remove cs.output.store(OP_CHAR, cs.ch, cs.prec_stack);
+							cs.prec_stack.start(cs.output.store(OP_CHAR, cs.ch));
 							break;
 						}
 					}
@@ -168,12 +176,13 @@ namespace re {
 					break;
 
 				case TOK_BACKREF:
-					cs.output.store(OP_BACKREF, cs.ch, cs.prec_stack);
+					// remove cs.output.store(OP_BACKREF, cs.ch, cs.prec_stack);
+						cs.prec_stack.start(cs.output.store(OP_BACKREF, cs.ch));
 					break;
 
 				case '(':
-					cs.number_of_backrefs++;
-					cs.parenthesis_nesting++;
+					++cs.number_of_backrefs;
+					++cs.parenthesis_nesting;
 
 					cs.prec_stack.start(cs.output.offset());
 
@@ -189,7 +198,7 @@ namespace re {
 					if (cs.parenthesis_nesting <= 0) {
 						return MISMATCHED_PARENTHESIS;
 					}
-					cs.parenthesis_nesting--;
+					--cs.parenthesis_nesting;
 
 					assert(cs.prec_stack.size() > 1);
 					cs.prec_stack.pop();
@@ -613,7 +622,8 @@ namespace re {
 					if (context_independent_ops()) {
 						return ILLEGAL_OPERATOR;
 					} else {
-						cs.output.store(OP_CHAR, cs.ch, cs.prec_stack);
+						// cs.output.store(OP_CHAR, cs.ch, cs.prec_stack);
+						cs.prec_stack.start(cs.output.store(OP_CHAR, cs.ch));
 						break;
 					}
 				}
@@ -711,7 +721,8 @@ namespace re {
 				if (cs.input.get_number(cs.ch) || cs.ch <= 0 || cs.ch >= MAX_BACKREFS) {
 					return BACKREFERENCE_OVERFLOW;
 				}
-				cs.output.store(OP_BACKREF, cs.ch, cs.prec_stack);
+				//remove cs.output.store(OP_BACKREF, cs.ch, cs.prec_stack);
+			cs.prec_stack.start(cs.output.store(OP_BACKREF, cs.ch));
 				break;
 
 			case '{':
@@ -719,11 +730,13 @@ namespace re {
 				break;
 
 			case 'b':
-				cs.output.store(OP_WORD_BOUNDARY, 0, cs.prec_stack);
+				//cs.output.store(OP_WORD_BOUNDARY, 0, cs.prec_stack);
+					cs.prec_stack.start(cs.output.store(OP_WORD_BOUNDARY, 0));
 				break;
 
 			case 'B':
-				cs.output.store(OP_WORD_BOUNDARY, 1, cs.prec_stack);
+				//cs.output.store(OP_WORD_BOUNDARY, 1, cs.prec_stack);
+					cs.prec_stack.start(cs.output.store(OP_WORD_BOUNDARY, 1));
 				break;
 
 			case 'd':

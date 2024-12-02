@@ -48,27 +48,37 @@ namespace re {
             std::fill(_code_vector.begin(), _code_vector.end(), 0);
         }
 
-        void store(code_type t) {
+        int store(code_type t) {
+            auto start = _offset;
             _code_vector.push_back(t);
             _offset++;
+            return start;
         }
 
-        void store(code_type op, code_type flag) {
+        int store(code_type op, code_type flag) {
+            auto start = _offset;
             _code_vector.push_back(op);
             _code_vector.push_back(flag);
             _offset += 2;
+            return start;
         }
 
-        void store(code_type opcode, re_precedence_stack& prec_stack) {
+#if remove
+        int store(code_type opcode, re_precedence_stack& prec_stack) {
+            const auto start = _offset;
             prec_stack.start(_offset);
             store(opcode);
+            return start;
         }
 
-        void store(code_type opcode, code_type ch, re_precedence_stack& prec_stack) {
+        int store(code_type opcode, code_type ch, re_precedence_stack& prec_stack) {
+            const auto start = _offset;
             prec_stack.start(_offset);
             store(opcode);
             store(ch);
+            return start;
         }
+#endif
 
         void put_address(int off, int addr) {
             int dsp = addr - off - 2;
