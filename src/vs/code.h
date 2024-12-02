@@ -2,7 +2,6 @@
 #pragma once
 
 #include "tokens.h"
-#include "precedence.h"
 
 namespace re {
     template <class traitsT>
@@ -18,19 +17,6 @@ namespace re {
         compiled_code_vector() {
             initialize();
         }
-#if 0
-        compiled_code_vector(const compiled_code_vector& rhs) {
-            operator=(rhs);
-        }
-
-        compiled_code_vector& operator=(const compiled_code_vector& rhs) {
-            if (this != &rhs) {
-                _code_vector = rhs._code_vector;
-                _offset = rhs._offset;
-            }
-            return *this;
-        }
-#endif
 
         ~compiled_code_vector() = default;
 
@@ -62,23 +48,6 @@ namespace re {
             _offset += 2;
             return start;
         }
-
-#if remove
-        int store(code_type opcode, re_precedence_stack& prec_stack) {
-            const auto start = _offset;
-            prec_stack.start(_offset);
-            store(opcode);
-            return start;
-        }
-
-        int store(code_type opcode, code_type ch, re_precedence_stack& prec_stack) {
-            const auto start = _offset;
-            prec_stack.start(_offset);
-            store(opcode);
-            store(ch);
-            return start;
-        }
-#endif
 
         void put_address(int off, int addr) {
             int dsp = addr - off - 2;
@@ -217,7 +186,7 @@ namespace re {
             put_number(_offset, mx);
             _offset += 2;
 
-            cs.prec_stack.start(_offset);
+            cs.prec_stack.start(_offset); // is this right? look at other that place this earlier
         }
 
         int store_closure(compile_state_type& cs) {

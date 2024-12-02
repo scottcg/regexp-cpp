@@ -168,12 +168,40 @@ void test_perl() {
     cout << "Compile result: " << compileResult << endl;
     engine.dump_code(cout);
 
+    // test "th(is|at) thing" in "this thing" should match
+    // test "this|that" in "this thing" should match
+    // test "\b(fee|fie|foe|fum)\b" in "fee fie foe fum" should match
+    // test "[!@"#$%^&*()=?<>']" in "!" should match
+    // test "(?>(?:(?>[^"\\]+)|\\.)*)"
+    // test "foo(?#comment)bar" in "foobar" should match this is a comment : (?#text)
+    // test "\b(foo)\s+(\w+)/i" match "Food is on the foo table." 2 follows 1
+
+    // testing string "I have 2 numbers: 53147"
+    //  print "<$1> <$2>\n";
+    // (.*)(\d*)    <I have 2 numbers: 53147> <>
+    // (.*)(\d+)    <I have 2 numbers: 5314> <7>
+    // (.*?)(\d*)   <> <>
+    // (.*?)(\d+)   <I have > <2>
+    // (.*?)(\d+)$  <I have 2 numbers: > <53147>
+
+    re_engine<perl_syntax<my_traits>> engineForClosure;
+
     re_ctext<my_traits> text("Hello, World!");
     //auto const searchResult = engine.exec_search(text);
     //cout << "Search result: " << searchResult << endl;
 
     //auto const matchResult = engine.exec_match(text);
     //cout << "Match result: " << matchResult << endl;
+}
+
+void test_perl_expression() {
+    cout << endl << "Testing test_perl_expression compile" << endl;
+    using my_traits = re_char_traits<char>;
+    re_engine<perl_syntax<my_traits>> engine;
+    auto const compileResult = engine.exec_compile("th(is|at) thing");
+    cout << "Compile result: " << compileResult << endl;
+    engine.dump_code(cout);
+
 }
 
 #if 1
@@ -274,6 +302,8 @@ int main() {
 
     test_basic_expression();
     test_perl();
+
+    test_perl_expression();
 
     return 0;
 }

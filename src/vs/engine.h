@@ -886,7 +886,7 @@ namespace re {
 	void re_engine<syntaxType>::dump_code(std::ostream& out) const {
 		const char_type *cp = code.code();
 		int pos = 0;
-		while ((pos = (cp - code.code())) < code.offset()) {
+		while ((pos = cp - code.code()) < code.offset()) {
 			out << '\t' << pos << '\t';
 
 			switch (*cp++) {
@@ -994,23 +994,23 @@ namespace re {
 					break;
 
 				case OP_GOTO:
-					out << "OP_GOTO (" << decode_address_and_advance(cp) << ")\n";
+					out << "OP_GOTO (" << pos << ", +"  << decode_address_and_advance(cp) << ")\n";
 					break;
 
 				case OP_POP_FAILURE_GOTO:
-					out << "OP_POP_FAILURE_GOTO (" << decode_address_and_advance(cp) << ")\n";
+					out << "OP_POP_FAILURE_GOTO (" << pos << ", +" << decode_address_and_advance(cp) << ")\n";
 					break;
 
 				case OP_FAKE_FAILURE_GOTO:
-					out << "OP_FAKE_FAILURE_GOTO (" << decode_address_and_advance(cp) << ")\n";
+					out << "OP_FAKE_FAILURE_GOTO (" << pos << ", +" << decode_address_and_advance(cp) << ")\n";
 					break;
 
 				case OP_PUSH_FAILURE:
-					out << "OP_PUSH_FAILURE (" << decode_address_and_advance(cp) << ")\n";
+					out << "OP_PUSH_FAILURE (" << pos << ", +" << decode_address_and_advance(cp) << ")\n";
 					break;
 
 				case OP_PUSH_FAILURE2:
-					out << "OP_PUSH_FAILURE2 (" << decode_address_and_advance(cp) << ")\n";
+					out << "OP_PUSH_FAILURE2 (" << pos << ", +" << decode_address_and_advance(cp) << ")\n";
 					break;
 
 				case OP_POP_FAILURE:
