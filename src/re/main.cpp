@@ -308,6 +308,12 @@ namespace re {
                         }
                         break;
 
+                    case OP_SPLIT:
+                        // Push alternate path onto the failure stack
+                            failure_stack.push({instr.arg2, sp}); // Save alternate branch
+                    pc = instr.arg1; // Take primary branch
+                    break;
+
                     case OP_RANGE_CHAR:
                         if (sp < input.size() && input[sp] >= instr.arg1 && input[sp] <= instr.arg2) {
                             sp++;
@@ -393,52 +399,6 @@ namespace re {
                 pc = failure_stack.top().first;
                 sp = failure_stack.top().second;
                 failure_stack.pop();
-            }
-        }
-
-        bool execute_regex_program6(const std::vector<instruction>& program, const std::string& input) {
-            unsigned int pc = 0;                        // Program counter
-            unsigned int sp = 0;                        // Input pointer
-            std::stack<std::pair<int, int>> failure_stack; // For backtracking (pc, sp)
-
-            while (true) {
-                if (pc >= program.size()) {
-                    throw std::runtime_error("Program counter out of bounds");
-                }
-
-                const auto& instr = program[pc];
-
-                switch (instr.op) {
-                    case OP_END:
-                        return false; // No match
-
-                    case OP_MATCH:
-                        return true; // Successful match
-
-                    case OP_SPLIT:
-                        // Push alternate path onto the failure stack
-                            failure_stack.push({instr.arg2, sp}); // Save alternate branch
-                    pc = instr.arg1; // Take primary branch
-                    break;
-
-                    case OP_CHAR:
-                        if (sp < input.size() && input[sp] == instr.arg1) {
-                            sp++; // Advance input pointer
-                            pc++; // Advance to next instruction
-                        } else {
-                            goto fail; // Character mismatch
-                        }
-                    break;
-
-                    fail:
-                        if (failure_stack.empty()) {
-                            return false; // No more failure points, no match
-                        }
-                    pc = failure_stack.top().first; // Restore program counter
-                    sp = failure_stack.top().second; // Restore input pointer
-                    failure_stack.pop(); // Remove failure point
-                    break;
-                }
             }
         }
     };
@@ -602,7 +562,7 @@ int main() {
         {OP_MATCH},        // Successful match
         {OP_END}           // End of program
     };
-    r = engine.execute_regex_program6(program6, "c"); // true
+    r = engine.execute_regex_program5(program6, "c"); // true
     std::cout << "result6 = " << r << std::endl;
-    std::cout << "result6 = " << engine.execute_regex_program6(program6, "f") << std::endl;
+    std::cout << "result6 = " << engine.execute_regex_program5(program6, "f") << std::endl;
 }
