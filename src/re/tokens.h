@@ -67,6 +67,19 @@ namespace re {
 		OP_NO_CASELESS,		// turn off caseless compares
 		OP_LCASELESS,		// turn on lower caseless compares
 		OP_NO_LCASELESS,	// turn off lower caseless compares
+
+        OP_ASSERT,			// assert following expression at current point.
+      	OP_SPLIT,
+      	OP_JUMP,
+    	OP_ANY,
+    	OP_FAIL,
+    	OP_REPEAT_START,
+    	OP_REPEAT_CHECK,
+    	OP_MATCH,
+    	OP_LOOP_START,
+    	OP_LOOP_END,
+      	OP_GROUP_START,
+      	OP_GROUP_END,
 	};
 
     constexpr int SYNTAX_ERROR = -1;

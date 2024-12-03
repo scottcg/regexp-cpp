@@ -270,15 +270,16 @@ void test_basic_regular_expression() {
 void test_syntax_python() {
     cout << "text_syntax_python" << endl;
     using my_traits = re_char_traits<char>;
-    using python_syntax_type = syntax_python<my_traits>;
+    using target_syntax = syntax_grep<my_traits>;
 
-    re_engine<python_syntax_type> r;
+    re_engine<target_syntax> r;
     auto expr = "[a-c]+";
     auto compileResult = r.exec_compile("[a-c]+");
     cout << "Compile result: " << compileResult << " expr:" << expr << endl;
     r.dump_code(cout);
 
     expr = "\\w{3,4}";
+    expr = "[a-zA-Z0-9_]"; // \w
     compileResult = r.exec_compile(expr);
     cout << "Compile result: " << compileResult << " expr:" << expr << endl;
     r.dump_code(cout);

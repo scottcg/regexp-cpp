@@ -9,122 +9,202 @@
 #include "tokens.h"
 
 namespace re {
-    ///////////////////////////////////////////////////////////////////////////////////////////////
-    // number of precedence levels in use, if you change this number, be sure to add 1 so that
-    // ::store_cclass will have the highest precedence for it's own use (it's using NUM_LEVELS - 1).
-    constexpr int NUM_LEVELS = 6;
+    template<class T>
+    struct char_traits : std::char_traits<T> {
+        typedef T char_type;
+        typedef typename std::char_traits<T>::int_type int_type;
+        typedef std::basic_string<T> string_type;
+    };
 
-    ///////////////////////////////////////////////////////////////////////////////////////////////
-    // the re_precedence_vec and re_precedence_stack work together to provide and n precedence levels
-    // and (almost) unlimited amount of nesting. the nesting occurs when via the precedence stack
-    // (push/pop) and the re_precedence_vec stores the current offset of the output code via
-    // a store current precedence. did you get all of that?
+    template<>
+    struct char_traits<char> : std::char_traits<char> {
+        using traits_type = std::char_traits<char>;
+        typedef std::basic_string<char> string_type;
 
-    template<int sz>
-    class re_precedence_vec : public std::vector<int> {
-    public:
-        explicit re_precedence_vec(const int init = 0) : std::vector<int>(sz, init) {
+        static size_t length(const char_type *x) { return traits_type::length(x); }
+
+        static int isalpha(const int_type c) { return std::isalpha(c); }
+        static int isalnum(const int_type c) { return std::isalnum(c); }
+        static int isspace(const int_type c) { return std::isspace(c); }
+        static int isdigit(const int_type c) { return std::isdigit(c); }
+        static int islower(const int_type c) { return std::islower(c); }
+        static int toupper(const int_type c) { return std::toupper(c); }
+        static int tolower(const int_type c) { return std::tolower(c); }
+    };
+
+    struct instruction {
+        int op; // Opcode (e.g., OP_CHAR, OP_RANGE_CHAR, etc.)
+        int arg1; // First argument (e.g., character, range start, jump target, etc.)
+        int arg2; // Second argument (e.g., range end, repetition max, etc.)
+
+        instruction(int opcode) : op(opcode), arg1(0), arg2(0) {
+        }
+
+        instruction(int opcode, int argument1) : op(opcode), arg1(argument1), arg2(0) {
+        }
+
+        instruction(int opcode, int argument1, int argument2)
+            : op(opcode), arg1(argument1), arg2(argument2) {
         }
     };
 
-    typedef re_precedence_vec<NUM_LEVELS> re_precedence_element;
-
-    ///////////////////////////////////////////////////////////////////////////////////////////////
-    // the actual precedence stack; adds a couple of handy members to keep track of the positions
-    // in the re_precedence_element.
-
-    class re_precedence_stack : public std::stack<re_precedence_element> {
+    template<class traitsType>
+    class expression_engine {
     public:
-        re_precedence_stack() : m_current(0) {
-            push(re_precedence_element());
-        }
+        typedef typename traitsType::char_type char_type;
+        typedef typename traitsType::int_type int_type;
 
-        // current precedence value.
-        int current() const { return m_current; }
-        void current(const int l) { m_current = l; }
+        bool execute_regex(const std::vector<instruction> &program, const std::string &input) {
+            unsigned int pc = 0; // Program counter
+            unsigned int sp = 0; // Input pointer
+            std::stack<int> failure_stack; // For backtracking
+            std::stack<std::pair<int, int> > repeat_stack; // For repetition counters
+            std::stack<int> group_stack; // For capture group start positions
+            std::unordered_map<int, std::string> groups; // Captured groups
 
-        // where we are int the input stream; index in array indicates precedence
-        int start() const { return top().at(m_current); }
-        void start(const int offset) { top().at(m_current) = offset; }
+            while (true) {
+                if (pc >= program.size()) {
+                    throw std::runtime_error("Program counter out of bounds");
+                }
+                const auto &instr = program[pc];
 
-    private:
-        int m_current;
-    };
+                switch (instr.op) {
+                    case OP_END:
+                        return true; // End of program, successful match
 
-    ///////////////////////////////////////////////////////////////////////////////////////////////
-    // trivial stack used to keep track of the offsets in the code vector where jumps
-    // should occur when changing to lower precedence operators. after a successful
-    // compilation of a regular expression the future jump stack should be empty.
+                    case OP_MATCH:
+                        return true; // Successful match
 
-    typedef std::stack<int> re_future_jump_stack;
-    typedef re_precedence_stack re_precedence_stack;
+                    case OP_FAIL:
+                        goto fail; // Explicit failure state
 
-  template<class T>
-  struct char_traits : std::char_traits<T> {
-    typedef T char_type;
-    typedef typename std::char_traits<T>::int_type int_type;
-  	typedef std::basic_string<T> string_type;
-  };
+                    case OP_CHAR:
+                        if (sp < input.size() && input[sp] == instr.arg1) {
+                            sp++;
+                            pc++;
+                        } else {
+                            goto fail;
+                        }
+                        break;
 
-  template<>
-  struct char_traits<char> : std::char_traits<char> {
-    using traits_type = std::char_traits<char>;
-  	typedef std::basic_string<char> string_type;
+                    case OP_RANGE_CHAR:
+                        if (sp < input.size() && input[sp] >= instr.arg1 && input[sp] <= instr.arg2) {
+                            sp++;
+                            pc++;
+                        } else {
+                            goto fail;
+                        }
+                        break;
 
-    static size_t length(const char_type *x) { return traits_type::length(x); }
+                    case OP_ANY:
+                        if (sp < input.size()) {
+                            sp++;
+                            pc++;
+                        } else {
+                            goto fail;
+                        }
+                        break;
 
-    static int isalpha(const int_type c) { return std::isalpha(c); }
-    static int isalnum(const int_type c) { return std::isalnum(c); }
-    static int isspace(const int_type c) { return std::isspace(c); }
-    static int isdigit(const int_type c) { return std::isdigit(c); }
-    static int islower(const int_type c) { return std::islower(c); }
-    static int toupper(const int_type c) { return std::toupper(c); }
-    static int tolower(const int_type c) { return std::tolower(c); }
-  };
+                    case OP_JUMP:
+                        pc = instr.arg1; // Unconditional jump
+                        break;
 
+                    case OP_SPLIT:
+                        // Push alternate branch onto failure stack
+                        failure_stack.push(instr.arg2);
+                        pc = instr.arg1; // Take primary branch
+                        break;
 
-  template<typename traitsType>
-      class compile_state {
-  };
+                    case OP_PUSH_FAILURE:
+                        // Save current state for backtracking
+                        failure_stack.push(pc + 1);
+                        failure_stack.push(sp);
+                        pc = instr.arg1; // Jump to target
+                        break;
 
+                    case OP_POP_FAILURE:
+                        if (failure_stack.empty()) return false; // No more backtracking
+                        sp = failure_stack.top();
+                        failure_stack.pop(); // Restore input pointer
+                        pc = failure_stack.top();
+                        failure_stack.pop(); // Restore program counter
+                        break;
 
-  template <class traitsType>
-    class compiled_code_vector {
-    public:
-        typedef traitsType traits_type;
-        typedef typename traits_type::char_type char_type;
-        typedef typename traits_type::int_type int_type;
-        typedef typename traits_type::char_type code_type;
-        //typedef re_compile_state<traitsT> compile_state_type;
-  };
+                    case OP_REPEAT_START:
+                        // Initialize repetition counter with min/max bounds
+                        repeat_stack.push({0, instr.arg2});
+                        pc++;
+                        break;
 
+                    case OP_REPEAT_CHECK: {
+                        auto &[counter, max] = repeat_stack.top();
+                        counter++;
+                        if (counter < instr.arg1) {
+                            // Minimum repetitions not yet reached
+                            pc = instr.arg2; // Loop back
+                        } else if (max != -1 && counter >= max) {
+                            // Maximum repetitions reached
+                            repeat_stack.pop();
+                            pc++;
+                        } else {
+                            failure_stack.push(pc + 1);
+                            failure_stack.push(sp);
+                            pc = instr.arg2; // Continue repetition
+                        }
+                        break;
+                    }
 
-  template <class traitsType> class compiled_expression {
-    // compiled_code_vector<charTraits> code;
-    // precedence_stack<charTraits> precedence;
-  };
+                    case OP_LOOP_START:
+                        // Push the current program counter to mark the loop start
+                        failure_stack.push(pc + 1);
+                        pc++;
+                        break;
 
+                    case OP_LOOP_END:
+                        // Loop back to the loop start
+                        if (failure_stack.empty()) {
+                            throw std::runtime_error("Loop end without matching start");
+                        }
+                        pc = failure_stack.top();
+                        break;
 
-  template <class traitsType>
-    class syntax_compiler_base {
-      public:
-        typedef typename traitsType::string_type string_type;
+                    case OP_ASSERT:
+                        // Handle start-of-line (^) and end-of-line ($) assertions
+                        if ((instr.arg1 == '^' && sp != 0) || (instr.arg1 == '$' && sp != input.size())) {
+                            goto fail;
+                        }
+                        pc++;
+                        break;
 
-        std::tuple<int, compiled_code_vector<traitsType>> compile(string_type s) {
-          compiled_code_vector<traitsType> cv;
-          return std::make_tuple(-1, cv);
-        }
-  };
+                    case OP_GROUP_START:
+                        // Push the current input pointer to the group stack
+                        group_stack.push(sp);
+                        pc++;
+                        break;
 
+                    case OP_GROUP_END: {
+                        if (group_stack.empty()) {
+                            throw std::runtime_error("Group end without matching start");
+                        }
+                        int start = group_stack.top();
+                        group_stack.pop();
+                        groups[instr.arg1] = input.substr(start, sp - start); // Capture the group
+                        pc++;
+                        break;
+                    }
 
-  template<class traitsType>
-  	class perl_syntax_compiler : public syntax_compiler_base<traitsType> {
-      public:
-        typedef typename traitsType::string_type string_type;
+                    default:
+                        throw std::runtime_error("Unknown opcode");
+                }
+                continue;
 
-        std::tuple<int, compiled_code_vector<traitsType>> compile(string_type s) {
-          compiled_code_vector<traitsType> cv;
-          return std::make_tuple(-1, cv);
+            fail:
+                if (failure_stack.empty()) return false; // No more failure points
+                sp = failure_stack.top();
+                failure_stack.pop(); // Restore input pointer
+                pc = failure_stack.top();
+                failure_stack.pop(); // Restore program counter
+            }
         }
     };
 }
@@ -132,13 +212,157 @@ namespace re {
 using namespace re;
 
 int main() {
-  using traits_type = char_traits<char>;
-  perl_syntax_compiler<traits_type> perl;
+    using traits_type = char_traits<char>;
+    expression_engine<traits_type> engine;
 
-  auto [result, cv] = perl.compile("[Hh]ello [Ww]orld");
+    // https://colauttilab.github.io/PythonCrashCourse/2_regex.html#1_overview
 
-  std::cout << "Result: " << result << std::endl;
+    // Compiled Opcodes for \w{1,3}
+    std::vector<instruction> program1 = {
+        {OP_REPEAT_START, 1, 3}, // Start repetition, min = 1, max = 3
+        {OP_PUSH_FAILURE, 13}, // Push failure state for backtracking
+        {OP_RANGE_CHAR, 'a', 'z'}, // Match 'a-z'
+        {OP_JUMP, 6}, // Skip to repeat check
+        {OP_RANGE_CHAR, 'A', 'Z'}, // Match 'A-Z'
+        {OP_JUMP, 6}, // Skip to repeat check
+        {OP_RANGE_CHAR, '0', '9'}, // Match '0-9'
+        {OP_JUMP, 6}, // Skip to repeat check
+        {OP_CHAR, '_'}, // Match '_'
+        {OP_REPEAT_CHECK}, // Check repetition bounds
+        {OP_POP_FAILURE}, // Exit loop if no match
+        {OP_FAIL}, // Failure state
+        {OP_MATCH}, // Successful match
+        {OP_END}, // End of program
+    };
+    auto r = engine.execute_regex(program1, "the"); // true
+    std::cout << "result1 = " << r << std::endl;
 
-  //cv.dump(std::cout);
+    // Compiled Opcodes for [a-zA-Z0-9_]+ (equivalent to \w+)
+    std::vector<instruction> program2 = {
+        {OP_LOOP_START}, // Start of the loop
+        {OP_PUSH_FAILURE, 13}, // Push failure point (exit loop)
+        {OP_RANGE_CHAR, 'a', 'z'}, // Match 'a-z'
+        {OP_JUMP, 0}, // Loop back to check next character
+        {OP_RANGE_CHAR, 'A', 'Z'}, // Match 'A-Z'
+        {OP_JUMP, 0}, // Loop back to check next character
+        {OP_RANGE_CHAR, '0', '9'}, // Match '0-9'
+        {OP_JUMP, 0}, // Loop back to check next character
+        {OP_CHAR, '_'}, // Match '_'
+        {OP_JUMP, 0}, // Loop back to check next character
+        {OP_POP_FAILURE}, // Exit loop if no match
+        {OP_LOOP_END}, // End of the loop
+        {OP_MATCH}, // Successful match
+        {OP_END}, // End of program
+    };
+    r = engine.execute_regex(program2, "abc123_def"); // true
+    std::cout << "result2 = " << r << std::endl;
+
+    // Compiled Opcodes for  (a|b)*c+d?e{2,3}
+    std::vector<instruction> program3 = {
+        // (a|b)*
+        {OP_LOOP_START}, // Start of loop
+        {OP_SPLIT, 3, 6}, // Fork: try 'a' or 'b'
+        {OP_CHAR, 'a'}, // Match 'a'
+        {OP_JUMP, 0}, // Loop back
+        {OP_CHAR, 'b'}, // Match 'b'
+        {OP_JUMP, 0}, // Loop back
+        {OP_POP_FAILURE}, // Exit loop if no match
+
+        // c+
+        {OP_REPEAT_START, 1, -1}, // Start repetition (min 1, max unlimited)
+        {OP_CHAR, 'c'}, // Match 'c'
+        {OP_REPEAT_CHECK}, // Check repetition bounds
+
+        // d?
+        {OP_SPLIT, 12, 14}, // Fork: match 'd' or skip
+        {OP_CHAR, 'd'}, // Match 'd'
+
+        // e{2,3}
+        {OP_REPEAT_START, 2, 3}, // Start repetition (min 2, max 3)
+        {OP_CHAR, 'e'}, // Match 'e'
+        {OP_REPEAT_CHECK}, // Check repetition bounds
+
+        // End of program
+        {OP_MATCH}, // Successful match
+        {OP_END} // End of program
+    };
+    r = engine.execute_regex(program2, "acee"); // true
+    std::cout << "result3 = " << r << std::endl;
+
+    // Compiled Opcodes for  ^(abc|def)$
+    std::vector<instruction> program4 = {
+        // ^
+        {OP_ASSERT, '^'}, // Assert start of input
+
+        // abc|def
+        {OP_SPLIT, 3, 8}, // Fork: try "abc" or "def"
+        {OP_CHAR, 'a'}, // Match 'a'
+        {OP_CHAR, 'b'}, // Match 'b'
+        {OP_CHAR, 'c'}, // Match 'c'
+        {OP_JUMP, 12}, // Skip "def" branch
+        {OP_CHAR, 'd'}, // Match 'd'
+        {OP_CHAR, 'e'}, // Match 'e'
+        {OP_CHAR, 'f'}, // Match 'f'
+
+        // $
+        {OP_ASSERT, '$'}, // Assert end of input
+
+        // End of program
+        {OP_MATCH}, // Successful match
+        {OP_END} // End of program
+    };
+    r = engine.execute_regex(program2, "abc"); // true
+    std::cout << "result4 = " << r << std::endl;
+
+    r = engine.execute_regex(program2, "def"); // true
+    std::cout << "result4 = " << r << std::endl;
+
+    // Compiled Opcodes for ".*(\w\w+).*"
+    std::vector<instruction> program5 = {
+        // .*
+        {OP_LOOP_START}, // Start loop for '.*'
+        {OP_PUSH_FAILURE, 6}, // Push failure point
+        {OP_ANY}, // Match any character
+        {OP_JUMP, 0}, // Loop back
+        {OP_POP_FAILURE}, // Exit loop if no match
+
+        // (\w\w+)
+        {OP_GROUP_START, 1}, // Start capture group 1
+        {OP_RANGE_CHAR, 'a', 'z'}, // Match first word character
+        {OP_RANGE_CHAR, 'a', 'z'}, // Match second word character
+        {OP_REPEAT_START, 1, -1}, // Match additional word characters (min 1, max unlimited)
+        {OP_RANGE_CHAR, 'a', 'z'}, // Match repeated word characters
+        {OP_REPEAT_CHECK}, // Check repetition bounds
+        {OP_GROUP_END, 1}, // End capture group 1
+
+        // .*
+        {OP_LOOP_START}, // Start loop for trailing '.*'
+        {OP_PUSH_FAILURE, 17}, // Push failure point
+        {OP_ANY}, // Match any character
+        {OP_JUMP, 14}, // Loop back
+        {OP_POP_FAILURE}, // Exit loop if no match
+
+        // End of program
+        {OP_MATCH}, // Successful match
+        {OP_END} // End of program
+    };
+    r = engine.execute_regex(program5, "abc123def"); // true
+    std::cout << "result5 = " << r << std::endl;
+
+    // Compiled Opcodes for "[which]"
+    std::vector<instruction> program6 = {
+        {OP_SPLIT, 2, 4}, // Try 'w' or move to 'h'
+        {OP_CHAR, 'w'}, // Match 'w'
+        {OP_SPLIT, 5, 7}, // Try 'h' or move to 'i'
+        {OP_CHAR, 'h'}, // Match 'h'
+        {OP_SPLIT, 8, 10}, // Try 'i' or move to 'c'
+        {OP_CHAR, 'i'}, // Match 'i'
+        {OP_SPLIT, 11, 13}, // Try 'c' or move to 'h'
+        {OP_CHAR, 'c'}, // Match 'c'
+        {OP_CHAR, 'h'}, // Match 'h'
+        {OP_MATCH}, // Successful match
+        {OP_END} // End of program
+    };
+    r = engine.execute_regex(program6, "c"); // true
+    std::cout << "result6 = " << r << std::endl;
 }
-
