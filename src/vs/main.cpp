@@ -267,7 +267,7 @@ void test_basic_regular_expression() {
     re_match_vector matches;
 }
 
-void test_syntax_python() {
+void test_syntax_perl_dump() {
     cout << "text_syntax_python" << endl;
     using my_traits = re_char_traits<char>;
     using target_syntax = syntax_grep<my_traits>;
@@ -325,7 +325,7 @@ int main() {
 
     test_perl_expression();
 
-    test_syntax_python();
+    test_syntax_perl_dump();
 
     return 0;
 }
