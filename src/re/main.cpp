@@ -76,6 +76,7 @@ namespace re {
         OP_LOOP_END,
         OP_GROUP_START,
         OP_GROUP_END,
+        OP_RECURSE,
     };
 
     template<class T>
@@ -123,12 +124,11 @@ namespace re {
         typedef typename traitsType::char_type char_type;
         typedef typename traitsType::int_type int_type;
 
-        bool execute_regex(const std::vector<instruction> &program, const std::string &input) {
+        bool exec(const std::vector<instruction> &program, const std::string &input) {
             unsigned int pc = 0; // Program counter
             unsigned int sp = 0; // Input pointer
-            std::stack<int> failure_stack; // For backtracking
+            std::stack<std::pair<int, int> > failure_stack; // For backtracking
             std::stack<std::pair<int, int> > repeat_stack; // For repetition counters
-            std::stack<int> group_stack; // For capture group start positions
             std::unordered_map<int, std::string> groups; // Captured groups
 
             while (true) {
@@ -180,23 +180,21 @@ namespace re {
 
                     case OP_SPLIT:
                         // Push alternate branch onto failure stack
-                        failure_stack.push(instr.arg2);
+                        failure_stack.push({instr.arg2, sp});
                         pc = instr.arg1; // Take primary branch
                         break;
 
                     case OP_PUSH_FAILURE:
                         // Save current state for backtracking
-                        failure_stack.push(pc + 1);
-                        failure_stack.push(sp);
+                        failure_stack.push({pc + 1, sp});
                         pc = instr.arg1; // Jump to target
                         break;
 
                     case OP_POP_FAILURE:
                         if (failure_stack.empty()) return false; // No more backtracking
-                        sp = failure_stack.top();
-                        failure_stack.pop(); // Restore input pointer
-                        pc = failure_stack.top();
-                        failure_stack.pop(); // Restore program counter
+                        pc = failure_stack.top().first;
+                        sp = failure_stack.top().second;
+                        failure_stack.pop();
                         break;
 
                     case OP_REPEAT_START:
@@ -216,8 +214,7 @@ namespace re {
                             repeat_stack.pop();
                             pc++;
                         } else {
-                            failure_stack.push(pc + 1);
-                            failure_stack.push(sp);
+                            failure_stack.push({pc + 1, sp});
                             pc = instr.arg2; // Continue repetition
                         }
                         break;
@@ -225,7 +222,7 @@ namespace re {
 
                     case OP_LOOP_START:
                         // Push the current program counter to mark the loop start
-                        failure_stack.push(pc + 1);
+                        failure_stack.push({pc + 1, sp});
                         pc++;
                         break;
 
@@ -234,7 +231,7 @@ namespace re {
                         if (failure_stack.empty()) {
                             throw std::runtime_error("Loop end without matching start");
                         }
-                        pc = failure_stack.top();
+                        pc = failure_stack.top().first;
                         break;
 
                     case OP_ASSERT:
@@ -246,137 +243,8 @@ namespace re {
                         break;
 
                     case OP_GROUP_START:
-                        // Push the current input pointer to the group stack
-                        group_stack.push(sp);
-                        pc++;
-                        break;
-
-                    case OP_GROUP_END: {
-                        if (group_stack.empty()) {
-                            throw std::runtime_error("Group end without matching start");
-                        }
-                        int start = group_stack.top();
-                        group_stack.pop();
-                        groups[instr.arg1] = input.substr(start, sp - start); // Capture the group
-                        pc++;
-                        break;
-                    }
-
-                    default:
-                        throw std::runtime_error("Unknown opcode");
-                }
-                continue;
-
-            fail:
-                if (failure_stack.empty()) return false; // No more failure points
-                sp = failure_stack.top();
-                failure_stack.pop(); // Restore input pointer
-                pc = failure_stack.top();
-                failure_stack.pop(); // Restore program counter
-            }
-        }
-
-        bool execute_regex_program5(const std::vector<instruction> &program, const std::string &input) {
-            unsigned int pc = 0; // Program counter
-            unsigned int sp = 0; // Input pointer
-            std::stack<std::pair<int, int> > failure_stack; // For backtracking
-            std::stack<std::pair<int, int> > repeat_stack; // For repetition counters
-            std::unordered_map<int, std::string> groups; // Captured groups
-
-            while (true) {
-                if (pc >= program.size()) {
-                    throw std::runtime_error("Program counter out of bounds");
-                }
-                const auto &instr = program[pc];
-
-                switch (instr.op) {
-                    case OP_END:
-                        return false; // No match
-
-                    case OP_MATCH:
-                        return true; // Successful match
-
-                    case OP_FAIL:
-                        goto fail; // Explicit failure state
-
-                    case OP_CHAR:
-                        if (sp < input.size() && input[sp] == instr.arg1) {
-                            sp++;
-                            pc++;
-                        } else {
-                            goto fail;
-                        }
-                        break;
-
-                    case OP_SPLIT:
-                        // Push alternate path onto the failure stack
-                            failure_stack.push({instr.arg2, sp}); // Save alternate branch
-                    pc = instr.arg1; // Take primary branch
-                    break;
-
-                    case OP_RANGE_CHAR:
-                        if (sp < input.size() && input[sp] >= instr.arg1 && input[sp] <= instr.arg2) {
-                            sp++;
-                            pc++;
-                        } else {
-                            goto fail;
-                        }
-                        break;
-
-                    case OP_ANY:
-                        if (sp < input.size()) {
-                            sp++;
-                            pc++;
-                        } else {
-                            goto fail;
-                        }
-                        break;
-
-                    case OP_JUMP:
-                        pc = instr.arg1;
-                        break;
-
-                    case OP_PUSH_FAILURE:
-                        failure_stack.push({instr.arg1, sp});
-                        pc++;
-                        break;
-
-                    case OP_POP_FAILURE:
-                        if (failure_stack.empty()) return false;
-                        pc = failure_stack.top().first;
-                        sp = failure_stack.top().second;
-                        failure_stack.pop();
-                        break;
-
-                    case OP_LOOP_START:
-                        if (failure_stack.empty() || failure_stack.top() != std::make_pair(pc + 1, sp)) {
-                            failure_stack.push({pc + 1, sp});
-                        }
-                        pc++;
-                        break;
-
-                    case OP_REPEAT_START:
-                        repeat_stack.push({0, instr.arg2}); // Initialize repetition
-                        pc++;
-                        break;
-
-                    case OP_REPEAT_CHECK: {
-                        auto &[counter, max] = repeat_stack.top();
-                        counter++;
-                        if (counter < instr.arg1) {
-                            pc = instr.arg2; // Loop back if minimum repetitions not met
-                        } else if (max != -1 && counter >= max) {
-                            repeat_stack.pop(); // Maximum repetitions met
-                            pc++;
-                        } else {
-                            failure_stack.push({pc + 1, sp});
-                            pc = instr.arg2;
-                        }
-                        break;
-                    }
-
-                    case OP_GROUP_START:
-                        failure_stack.push({pc + 1, sp}); // Save group start state
+                        // Save group start position
+                        failure_stack.push({pc + 1, sp});
                         pc++;
                         break;
 
@@ -395,14 +263,89 @@ namespace re {
                 continue;
 
             fail:
-                if (failure_stack.empty()) return false;
-                pc = failure_stack.top().first;
-                sp = failure_stack.top().second;
+                if (failure_stack.empty()) return false; // No more failure points
+                pc = failure_stack.top().first; // Restore program counter
+                sp = failure_stack.top().second; // Restore input pointer
                 failure_stack.pop();
             }
         }
     };
+
+void dump_instructions(const std::vector<instruction>& program, const std::string& name) {
+    std::cout << "std::vector<instruction> " << name << " = {\n";
+    for (const auto& instr : program) {
+        std::cout << "    {";
+        switch (instr.op) {
+            case OP_END: std::cout << "OP_END"; break;
+            case OP_NOOP: std::cout << "OP_NOOP"; break;
+            case OP_BACKUP: std::cout << "OP_BACKUP"; break;
+            case OP_FORWARD: std::cout << "OP_FORWARD"; break;
+            case OP_BEGIN_OF_LINE: std::cout << "OP_BEGIN_OF_LINE"; break;
+            case OP_END_OF_LINE: std::cout << "OP_END_OF_LINE"; break;
+            case OP_STRING: std::cout << "OP_STRING"; break;
+            case OP_BIN_CHAR: std::cout << "OP_BIN_CHAR"; break;
+            case OP_NOT_BIN_CHAR: std::cout << "OP_NOT_BIN_CHAR"; break;
+            case OP_ANY_CHAR: std::cout << "OP_ANY_CHAR"; break;
+            case OP_CHAR: std::cout << "OP_CHAR"; break;
+            case OP_NOT_CHAR: std::cout << "OP_NOT_CHAR"; break;
+            case OP_RANGE_CHAR: std::cout << "OP_RANGE_CHAR"; break;
+            case OP_NOT_RANGE_CHAR: std::cout << "OP_NOT_RANGE_CHAR"; break;
+            case OP_BACKREF_BEGIN: std::cout << "OP_BACKREF_BEGIN"; break;
+            case OP_BACKREF_END: std::cout << "OP_BACKREF_END"; break;
+            case OP_BACKREF: std::cout << "OP_BACKREF"; break;
+            case OP_BACKREF_FAIL: std::cout << "OP_BACKREF_FAIL"; break;
+            case OP_EXT_BEGIN: std::cout << "OP_EXT_BEGIN"; break;
+            case OP_EXT_END: std::cout << "OP_EXT_END"; break;
+            case OP_EXT: std::cout << "OP_EXT"; break;
+            case OP_NOT_EXT: std::cout << "OP_NOT_EXT"; break;
+            case OP_GOTO: std::cout << "OP_GOTO"; break;
+            case OP_PUSH_FAILURE: std::cout << "OP_PUSH_FAILURE"; break;
+            case OP_PUSH_FAILURE2: std::cout << "OP_PUSH_FAILURE2"; break;
+            case OP_POP_FAILURE: std::cout << "OP_POP_FAILURE"; break;
+            case OP_POP_FAILURE_GOTO: std::cout << "OP_POP_FAILURE_GOTO"; break;
+            case OP_FAKE_FAILURE_GOTO: std::cout << "OP_FAKE_FAILURE_GOTO"; break;
+            case OP_CLOSURE: std::cout << "OP_CLOSURE"; break;
+            case OP_CLOSURE_INC: std::cout << "OP_CLOSURE_INC"; break;
+            case OP_TEST_CLOSURE: std::cout << "OP_TEST_CLOSURE"; break;
+            case OP_BEGIN_OF_BUFFER: std::cout << "OP_BEGIN_OF_BUFFER"; break;
+            case OP_END_OF_BUFFER: std::cout << "OP_END_OF_BUFFER"; break;
+            case OP_BEGIN_OF_WORD: std::cout << "OP_BEGIN_OF_WORD"; break;
+            case OP_END_OF_WORD: std::cout << "OP_END_OF_WORD"; break;
+            case OP_DIGIT: std::cout << "OP_DIGIT"; break;
+            case OP_SPACE: std::cout << "OP_SPACE"; break;
+            case OP_WORD: std::cout << "OP_WORD"; break;
+            case OP_WORD_BOUNDARY: std::cout << "OP_WORD_BOUNDARY"; break;
+            case OP_CASELESS: std::cout << "OP_CASELESS"; break;
+            case OP_NO_CASELESS: std::cout << "OP_NO_CASELESS"; break;
+            case OP_LCASELESS: std::cout << "OP_LCASELESS"; break;
+            case OP_NO_LCASELESS: std::cout << "OP_NO_LCASELESS"; break;
+            case OP_ASSERT: std::cout << "OP_ASSERT"; break;
+            case OP_SPLIT: std::cout << "OP_SPLIT"; break;
+            case OP_JUMP: std::cout << "OP_JUMP"; break;
+            case OP_ANY: std::cout << "OP_ANY"; break;
+            case OP_FAIL: std::cout << "OP_FAIL"; break;
+            case OP_REPEAT_START: std::cout << "OP_REPEAT_START"; break;
+            case OP_REPEAT_CHECK: std::cout << "OP_REPEAT_CHECK"; break;
+            case OP_MATCH: std::cout << "OP_MATCH"; break;
+            case OP_LOOP_START: std::cout << "OP_LOOP_START"; break;
+            case OP_LOOP_END: std::cout << "OP_LOOP_END"; break;
+            case OP_GROUP_START: std::cout << "OP_GROUP_START"; break;
+            case OP_GROUP_END: std::cout << "OP_GROUP_END"; break;
+            default: std::cout << instr.op; break;
+        }
+        if (instr.arg1 != 0 || instr.arg2 != 0) {
+            std::cout << ", " << instr.arg1;
+        }
+        if (instr.arg2 != 0) {
+            std::cout << ", " << instr.arg2;
+        }
+        std::cout << "},\n";
+    }
+    std::cout << "};\n";
 }
+};
+
+
 
 using namespace re;
 
@@ -429,7 +372,7 @@ int main() {
         {OP_MATCH}, // Successful match
         {OP_END}, // End of program
     };
-    auto r = engine.execute_regex(program1, "the"); // true
+    auto r = engine.exec(program1, "the"); // true
     std::cout << "result1 = " << r << std::endl;
 
     // Compiled Opcodes for [a-zA-Z0-9_]+ (equivalent to \w+)
@@ -449,7 +392,7 @@ int main() {
         {OP_MATCH}, // Successful match
         {OP_END}, // End of program
     };
-    r = engine.execute_regex(program2, "abc123_def"); // true
+    r = engine.exec(program2, "abc123_def"); // true
     std::cout << "result2 = " << r << std::endl;
 
     // Compiled Opcodes for  (a|b)*c+d?e{2,3}
@@ -481,7 +424,7 @@ int main() {
         {OP_MATCH}, // Successful match
         {OP_END} // End of program
     };
-    r = engine.execute_regex(program2, "acee"); // true
+    r = engine.exec(program2, "acee"); // true
     std::cout << "result3 = " << r << std::endl;
 
     // Compiled Opcodes for  ^(abc|def)$
@@ -506,10 +449,10 @@ int main() {
         {OP_MATCH}, // Successful match
         {OP_END} // End of program
     };
-    r = engine.execute_regex(program2, "abc"); // true
+    r = engine.exec(program2, "abc"); // true
     std::cout << "result4 = " << r << std::endl;
 
-    r = engine.execute_regex(program2, "def"); // true
+    r = engine.exec(program2, "def"); // true
     std::cout << "result4 = " << r << std::endl;
 
     // Compiled Opcodes for ".*(\w\w+).*"
@@ -541,28 +484,48 @@ int main() {
         {OP_MATCH}, // Successful match
         {OP_END} // End of program
     };
-    r = engine.execute_regex_program5(program5, "abc123def"); // true
+    r = engine.exec(program5, "abc123def"); // true
     std::cout << "result5 = " << r << std::endl;
 
     // Compiled Opcodes for "[which]"
     std::vector<instruction> program6 = {
-        {OP_SPLIT, 2, 4},  // Try 'w' or move to 'h'
-        {OP_CHAR, 'w'},    // Match 'w'
-        {OP_MATCH},        // Successful match
-        {OP_SPLIT, 5, 7},  // Try 'h' or move to 'i'
-        {OP_CHAR, 'h'},    // Match 'h'
-        {OP_MATCH},        // Successful match
+        {OP_SPLIT, 2, 4}, // Try 'w' or move to 'h'
+        {OP_CHAR, 'w'}, // Match 'w'
+        {OP_MATCH}, // Successful match
+        {OP_SPLIT, 5, 7}, // Try 'h' or move to 'i'
+        {OP_CHAR, 'h'}, // Match 'h'
+        {OP_MATCH}, // Successful match
         {OP_SPLIT, 8, 10}, // Try 'i' or move to 'c'
-        {OP_CHAR, 'i'},    // Match 'i'
-        {OP_MATCH},        // Successful match
-        {OP_SPLIT, 11, 13},// Try 'c' or move to 'h'
-        {OP_CHAR, 'c'},    // Match 'c'
-        {OP_MATCH},        // Successful match
-        {OP_CHAR, 'h'},    // Match 'h'
-        {OP_MATCH},        // Successful match
-        {OP_END}           // End of program
+        {OP_CHAR, 'i'}, // Match 'i'
+        {OP_MATCH}, // Successful match
+        {OP_SPLIT, 11, 13}, // Try 'c' or move to 'h'
+        {OP_CHAR, 'c'}, // Match 'c'
+        {OP_MATCH}, // Successful match
+        {OP_CHAR, 'h'}, // Match 'h'
+        {OP_MATCH}, // Successful match
+        {OP_END} // End of program
     };
-    r = engine.execute_regex(program6, "c"); // true
+    r = engine.exec(program6, "c"); // true
     std::cout << "result6 = " << r << std::endl;
-    std::cout << "result6 = " << engine.execute_regex_program5(program6, "f") << std::endl;
+
+
+    /*
+    *text = "(a(b)c)d"
+pattern = r"\(([^()]*|(?R))*+\)"  # Matches nested parentheses
+matches = re.findall(pattern, text)
+print(matches)  # Output: ['(a(b)c)', '(b)']
+     */
+    std::vector<instruction> nested_parentheses_program = {
+        {OP_CHAR, '('},                        // Match '('
+        {OP_LOOP_START},                       // Start loop for nested content
+            {OP_SPLIT, 3, 5},                  // Try `[^()]*` or `(?R)`
+            {OP_NOT_RANGE_CHAR, '(', ')'},     // Match `[^()]`
+            {OP_JUMP, 1},                      // Loop back for more characters
+            {OP_RECURSE},                      // Recursive call for nested parentheses
+            {OP_JUMP, 1},                      // Loop back for more characters
+        {OP_POP_FAILURE},                      // Exit loop if no match
+        {OP_CHAR, ')'},                        // Match ')'
+        {OP_MATCH},                            // Successful match
+        {OP_END}                               // End of program
+    };
 }
