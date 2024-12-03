@@ -9,6 +9,75 @@
 #include "tokens.h"
 
 namespace re {
+    enum opcodes {
+		OP_END,				// end of compiled operators.
+		OP_NOOP,			// no op; does nothing.
+		OP_BACKUP,			// backup the current source character.
+		OP_FORWARD,			// forward to the next source character.
+
+		OP_BEGIN_OF_LINE,	// match to beginning of line.
+		OP_END_OF_LINE,		// match to end of line.
+
+		OP_STRING,			// match a string; string chars follow (+null)
+		OP_BIN_CHAR,		// match a "binary" character (follows); usually constants.
+		OP_NOT_BIN_CHAR,	// not (OP_BIN_CHAR).
+		OP_ANY_CHAR,		// matches any single character (not a newline).
+		OP_CHAR,			// match character (char follows), caseless if requested.
+		OP_NOT_CHAR,		// does not match char (char follows), caseless if requested.
+		OP_RANGE_CHAR,		// match a range of chars (two chars follow), caseless if requested.
+		OP_NOT_RANGE_CHAR,	// not(OP_RANGE_CHAR).
+
+		OP_BACKREF_BEGIN,	// a backref starts (followed by a backref number).
+		OP_BACKREF_END,		// ends a backref address (followed by a backref number).
+		OP_BACKREF,			// match a duplicate of backref contents (backref follows).
+		OP_BACKREF_FAIL,	// check prior backref after failed alternate ex. ((a)|(b))
+
+		OP_EXT_BEGIN,		// like a backref, that is "grouping ()", not in backref list (n follows)
+		OP_EXT_END,			// closes an extension (n follows)
+		OP_EXT,				// match a duplicate of extension contexts (n follows)
+		OP_NOT_EXT,			// not (OP_EXT), (n follows)
+
+		OP_GOTO,			// followed by 2 bytes (lsb, msb) of displacement.
+		OP_PUSH_FAILURE,	// jump to address on failure.
+		OP_PUSH_FAILURE2,	// i'm completely out of control
+		OP_POP_FAILURE,		// pop the last failure off the stack
+		OP_POP_FAILURE_GOTO,// combination of OP_GOTO and OP_POP_FAILURE
+		OP_FAKE_FAILURE_GOTO,// push a dummy failure point and jump.
+
+		OP_CLOSURE,			// push a min,max pair for {} counted matching.
+		OP_CLOSURE_INC,		// add a completed match and loop if more to match.
+		OP_TEST_CLOSURE,	// test min,max pair and jump or fail.
+
+		OP_BEGIN_OF_BUFFER,	// match at beginning of buffer.
+		OP_END_OF_BUFFER,	// match at end of buffer.
+
+		OP_BEGIN_OF_WORD,	// match at the beginning of a word.
+		OP_END_OF_WORD,		// match at the end of a word.
+
+		OP_DIGIT,			// match using isdigit (one byte follow != 0 for complement)
+		OP_SPACE,			// match using isspace (one byte follow != 0 for complement)
+		OP_WORD,			// match using isalnum (one byte follow != 0 for complement)
+		OP_WORD_BOUNDARY,	// match a word boundary (one byte follow != 0 for complement)
+
+		OP_CASELESS,		// turn on caseless compares
+		OP_NO_CASELESS,		// turn off caseless compares
+		OP_LCASELESS,		// turn on lower caseless compares
+		OP_NO_LCASELESS,	// turn off lower caseless compares
+
+        OP_ASSERT,			// assert following expression at current point.
+      	OP_SPLIT,
+      	OP_JUMP,
+    	OP_ANY,
+    	OP_FAIL,
+    	OP_REPEAT_START,
+    	OP_REPEAT_CHECK,
+    	OP_MATCH,
+    	OP_LOOP_START,
+    	OP_LOOP_END,
+      	OP_GROUP_START,
+      	OP_GROUP_END,
+	};
+
     template<class T>
     struct char_traits : std::char_traits<T> {
         typedef T char_type;
@@ -317,6 +386,23 @@ int main() {
     r = engine.execute_regex(program2, "def"); // true
     std::cout << "result4 = " << r << std::endl;
 
+    // Compiled Opcodes for "[which]"
+    std::vector<instruction> program6 = {
+        {OP_SPLIT, 2, 4}, // Try 'w' or move to 'h'
+        {OP_CHAR, 'w'}, // Match 'w'
+        {OP_SPLIT, 5, 7}, // Try 'h' or move to 'i'
+        {OP_CHAR, 'h'}, // Match 'h'
+        {OP_SPLIT, 8, 10}, // Try 'i' or move to 'c'
+        {OP_CHAR, 'i'}, // Match 'i'
+        {OP_SPLIT, 11, 13}, // Try 'c' or move to 'h'
+        {OP_CHAR, 'c'}, // Match 'c'
+        {OP_CHAR, 'h'}, // Match 'h'
+        {OP_MATCH}, // Successful match
+        {OP_END} // End of program
+    };
+    r = engine.execute_regex(program6, "c"); // true
+    std::cout << "result6 = " << r << std::endl;
+
     // Compiled Opcodes for ".*(\w\w+).*"
     std::vector<instruction> program5 = {
         // .*
@@ -348,21 +434,4 @@ int main() {
     };
     r = engine.execute_regex(program5, "abc123def"); // true
     std::cout << "result5 = " << r << std::endl;
-
-    // Compiled Opcodes for "[which]"
-    std::vector<instruction> program6 = {
-        {OP_SPLIT, 2, 4}, // Try 'w' or move to 'h'
-        {OP_CHAR, 'w'}, // Match 'w'
-        {OP_SPLIT, 5, 7}, // Try 'h' or move to 'i'
-        {OP_CHAR, 'h'}, // Match 'h'
-        {OP_SPLIT, 8, 10}, // Try 'i' or move to 'c'
-        {OP_CHAR, 'i'}, // Match 'i'
-        {OP_SPLIT, 11, 13}, // Try 'c' or move to 'h'
-        {OP_CHAR, 'c'}, // Match 'c'
-        {OP_CHAR, 'h'}, // Match 'h'
-        {OP_MATCH}, // Successful match
-        {OP_END} // End of program
-    };
-    r = engine.execute_regex(program6, "c"); // true
-    std::cout << "result6 = " << r << std::endl;
 }
