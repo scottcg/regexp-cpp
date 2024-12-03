@@ -562,7 +562,7 @@ int main() {
         {OP_MATCH},        // Successful match
         {OP_END}           // End of program
     };
-    r = engine.execute_regex_program5(program6, "c"); // true
+    r = engine.execute_regex(program6, "c"); // true
     std::cout << "result6 = " << r << std::endl;
     std::cout << "result6 = " << engine.execute_regex_program5(program6, "f") << std::endl;
 }
