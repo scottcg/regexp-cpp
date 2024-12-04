@@ -3,7 +3,7 @@
 #include "concepts.h"
 #include "precedence.h"
 #include "code.h"
-#include "source.h"
+#include "input_string.h"
 
 namespace re {
     template<class traitsType>

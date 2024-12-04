@@ -11,31 +11,34 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -pedantic -Wno-unused-para
 # Source files
 set(MAIN_SRCS src/main.cpp)
 set(DUMP_SRCS src/dump.cpp)
-set(TESTS test/test_code_vector.cpp)
 
 # Add include directories
 include_directories(
-    ${CMAKE_SOURCE_DIR}/src
-    /opt/homebrew/Cellar/googletest/1.15.2/include
+        ${CMAKE_SOURCE_DIR}/src
+        /opt/homebrew/Cellar/googletest/1.15.2/include
 )
 
 # Add executables
 add_executable(main.bin ${MAIN_SRCS})
 add_executable(dump.bin ${DUMP_SRCS})
-add_executable(test_code_vector ${TESTS})
 
-# Add include directories for test_code_vector
-target_include_directories(test_code_vector PRIVATE ${CMAKE_SOURCE_DIR}/src)
+# Find all test files
+file(GLOB TEST_SRCS test/*.cpp)
 
-# Link Google Test manually
-target_link_libraries(test_code_vector
-    /opt/homebrew/Cellar/googletest/1.15.2/lib/libgtest.a
-    /opt/homebrew/Cellar/googletest/1.15.2/lib/libgtest_main.a
-    pthread
-)
+# Add include directories for tests
+foreach(TEST_SRC ${TEST_SRCS})
+    get_filename_component(TEST_NAME ${TEST_SRC} NAME_WE)
+    add_executable(${TEST_NAME} ${TEST_SRC})
+    target_include_directories(${TEST_NAME} PRIVATE ${CMAKE_SOURCE_DIR}/src)
+    target_link_libraries(${TEST_NAME}
+            /opt/homebrew/Cellar/googletest/1.15.2/lib/libgtest.a
+            /opt/homebrew/Cellar/googletest/1.15.2/lib/libgtest_main.a
+            pthread
+    )
+endforeach()
 
 # Custom target for running tests
 add_custom_target(run_tests
-    COMMAND ${CMAKE_BINARY_DIR}/test_code_vector
-    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+        COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure
+        DEPENDS ${TEST_SRCS}
 )

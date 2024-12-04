@@ -1,7 +1,7 @@
 #include <iostream>
 #include <cassert>
 #include "regex.h"
-#include "source.h"
+#include "input_string.h"
 #include "traits.h"
 #include "engine.h"
 #include "syntax_grep.h"
