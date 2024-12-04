@@ -9,31 +9,30 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -pedantic -Wno-unused-parameter -Wno-unused-const-variable -DDEBUG -g")
 
 # Source files
-set(SRCS main.cpp dump.cpp)
+set(MAIN_SRCS src/main.cpp)
+set(DUMP_SRCS src/dump.cpp)
+set(TESTS test/test_code_vector.cpp)
+
+# Add include directories
+include_directories(
+    ${CMAKE_SOURCE_DIR}/src
+    /opt/homebrew/Cellar/googletest/1.15.2/include
+)
 
 # Add executables
-add_executable(main.bin main.cpp)
-add_executable(dump.bin dump.cpp)
+add_executable(main.bin ${MAIN_SRCS})
+add_executable(dump.bin ${DUMP_SRCS})
+add_executable(test_code_vector ${TESTS})
 
-# Include directories
-include_directories(${CMAKE_SOURCE_DIR})
-
-# Link libraries (if any)
-# target_link_libraries(main.bin <library>)
-# target_link_libraries(dump.bin <library>)
-
-# Custom targets for running executables
-add_custom_target(exec_main
-    COMMAND main.bin
-    DEPENDS main.bin
-    WORKING_DIRECTORY ${CMAKE_PROJECT_DIR}
+# Link Google Test manually
+target_link_libraries(test_code_vector
+    /opt/homebrew/Cellar/googletest/1.15.2/lib/libgtest.a
+    /opt/homebrew/Cellar/googletest/1.15.2/lib/libgtest_main.a
+    pthread
 )
 
-add_custom_target(exec_dump
-    COMMAND dump.bin
-    DEPENDS dump.bin
-    WORKING_DIRECTORY ${CMAKE_PROJECT_DIR}
+# Custom target for running tests
+add_custom_target(run_tests
+    COMMAND ${CMAKE_BINARY_DIR}/test_code_vector
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
-
-# Clean up build files
-set_directory_properties(PROPERTIES ADDITIONAL_MAKE_CLEAN_FILES "main.bin;dump.bin")
