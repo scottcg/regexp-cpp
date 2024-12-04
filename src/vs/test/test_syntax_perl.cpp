@@ -1,7 +1,5 @@
 #include <gtest/gtest.h>
-#include <iostream>
 #include <cassert>
-#include "regex.h"
 #include "input_string.h"
 #include "traits.h"
 #include "engine.h"
@@ -27,8 +25,8 @@ namespace re {
     TEST(syntax_perl, IncompleteEOI) {
         syntax_perl_t syntax;
         std::string input_str = "test|";
-        re::input_string<ct> input(input_str.c_str());
-        re::compiled_code_vector<ct> output;
+        input_string<ct> input(input_str.c_str());
+        compiled_code_vector<ct> output;
         compile_state_t cs(syntax, output, input);
         ASSERT_TRUE(syntax.incomplete_eoi(cs));
     }
@@ -36,8 +34,8 @@ namespace re {
     TEST(syntax_perl, TranslatePlainOp) {
         syntax_perl_t syntax;
         std::string input_str = "{";
-        re::input_string<ct> input(input_str.c_str());
-        re::compiled_code_vector<ct> output;
+        input_string<ct> input(input_str.c_str());
+        compiled_code_vector<ct> output;
         compile_state_t cs(syntax, output, input);
         cs.input.get(cs.ch);
         ASSERT_EQ(syntax.translate_plain_op(cs), '{');
@@ -46,8 +44,8 @@ namespace re {
     TEST(syntax_perl, TranslateEscapedOp) {
         syntax_perl_t syntax;
         std::string input_str = "\\d";
-        re::input_string<ct> input(input_str.c_str());
-        re::compiled_code_vector<ct> output;
+        input_string<ct> input(input_str.c_str());
+        compiled_code_vector<ct> output;
         compile_state_t cs(syntax, output, input);
         cs.input.get(cs.ch);
         cs.input.get(cs.ch);
@@ -57,8 +55,8 @@ namespace re {
     TEST(syntax_perl, TranslateCharClassEscapedOp) {
         syntax_perl_t syntax;
         std::string input_str = "\\d";
-        re::input_string<ct> input(input_str.c_str());
-        re::compiled_code_vector<ct> output;
+        input_string<ct> input(input_str.c_str());
+        compiled_code_vector<ct> output;
         compile_state_t cs(syntax, output, input);
         cs.input.get(cs.ch);
         cs.input.get(cs.ch);
@@ -67,6 +65,6 @@ namespace re {
 }
 
 int main(int argc, char **argv) {
-    ::testing::InitGoogleTest(&argc, argv);
+    testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();
 }
