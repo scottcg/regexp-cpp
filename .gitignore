@@ -34,3 +34,13 @@
 
 # MacOS
 .DS_Store
+
+# Other generated files
+*.dSYM
+
+# CMake build files
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+*.cmake
+
