@@ -24,6 +24,9 @@ add_executable(main.bin ${MAIN_SRCS})
 add_executable(dump.bin ${DUMP_SRCS})
 add_executable(test_code_vector ${TESTS})
 
+# Add include directories for test_code_vector
+target_include_directories(test_code_vector PRIVATE ${CMAKE_SOURCE_DIR}/src)
+
 # Link Google Test manually
 target_link_libraries(test_code_vector
     /opt/homebrew/Cellar/googletest/1.15.2/lib/libgtest.a
