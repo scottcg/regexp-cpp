@@ -1,2 +1,7 @@
 
-Makefile
+
+build/
+
+.idea/
+!.idea/vcs.xml
+!.idea/modules.xml
