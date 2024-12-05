@@ -22,6 +22,9 @@ include_directories(
 add_executable(main.bin ${MAIN_SRCS})
 add_executable(dump.bin ${DUMP_SRCS})
 
+# Enable testing for the project
+enable_testing()
+
 # Find all test files
 file(GLOB TEST_SRCS test/*.cpp)
 
@@ -35,6 +38,8 @@ foreach(TEST_SRC ${TEST_SRCS})
             /opt/homebrew/Cellar/googletest/1.15.2/lib/libgtest_main.a
             pthread
     )
+    # Register the test with CTest
+    add_test(NAME ${TEST_NAME} COMMAND ${CMAKE_BINARY_DIR}/${TEST_NAME})
 endforeach()
 
 # Custom target for running tests
