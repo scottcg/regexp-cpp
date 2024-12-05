@@ -666,7 +666,7 @@ namespace re {
 					continue;
 				}
 
-#if !notdone
+#if notdone
 				case OP_BEGIN_OF_BUFFER:
 					if (text.buffer_begin()) continue;
 					break;
@@ -686,6 +686,7 @@ namespace re {
 				}
 				break;
 
+#if notdone
 				case OP_END_OF_WORD: {
 					if (text.at_begin() || traits_type::isalnum(text[-1]) == 0) {
 						break;
@@ -698,8 +699,9 @@ namespace re {
 					}
 					continue;
 				}
+#endif
 
-#if !notdone
+#if notdone
 				case OP_WORD_BOUNDARY: // match at begin/end of strings (buffer) ok.
 				{
 					if (*code_ptr) {
@@ -832,7 +834,7 @@ namespace re {
 		if (range == 0) {
 			range = text.length();
 		}
-#if !notdone
+#if notdone
 		int dir = (range < 0) ? -1 : 1;
 #endif
 		if (range < 0) {
@@ -844,7 +846,7 @@ namespace re {
 
 		const typename code_vector_type::code_type *code_ptr = code.code();
 
-#if !notdone
+#if notdone
 		for (int pos = text.start(); range >= 0; range--, pos += dir) {
 			text.start(pos);
 			//const char_type* partstart = 0;

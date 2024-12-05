@@ -41,6 +41,7 @@ namespace re {
     class syntax_perl : public syntax_egrep<traitsType> {
     public:
         typedef compile_state<traitsType> re_compile_state_type;
+    	typedef traitsType traits_type;
 
     public:
         int precedence(int op) const override {
