@@ -1,10 +1,5 @@
-
 #pragma once
-/*
-todo: potentially other syntaxes
-lex, sed, python i kinda like lex since it has that neat precedence with
-^this|that$ == ^(this|that)$
-*/
+
 
 #include "tokens.h"
 #include "precedence.h"

@@ -13,7 +13,6 @@ namespace re {
         typedef typename traits_type::char_type code_type;
         typedef compile_state<traitsT> compile_state_type;
 
-    public:
         compiled_code_vector() {
             initialize();
         }
@@ -29,11 +28,13 @@ namespace re {
             return _code_vector[i];
         }
 
+    private:
         void initialize() {
             _offset = 0;
             std::fill(_code_vector.begin(), _code_vector.end(), 0);
         }
 
+    public:
         int store(code_type t) {
             auto start = _offset;
             _code_vector.push_back(t);

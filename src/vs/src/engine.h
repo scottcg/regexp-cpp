@@ -77,14 +77,7 @@ namespace re {
 		typedef compile_state<traits_type> compile_state_type;
 		typedef re_ctext<traits_type> ctext_type;
 
-		short anchor;
-		int syntax_error_state;
-		bool caseless_cmps;
-		bool lower_caseless_cmps;
-		int using_backrefs;
-		size_t maximum_closure_stack;
-		code_vector_type code;
-		syntax_type syntax;
+
 
 		static const re_match_vector default_matches;
 
@@ -105,6 +98,17 @@ namespace re {
 		                re_match_vector &m = const_cast<re_match_vector &>(default_matches)) const;
 
 		void dump_code(std::ostream& out) const;
+
+	private:
+		code_vector_type code;
+		short anchor;
+		int syntax_error_state;
+		bool caseless_cmps;
+		bool lower_caseless_cmps;
+		int using_backrefs;
+		size_t maximum_closure_stack;
+
+		syntax_type syntax;
 	};
 
 
@@ -161,7 +165,7 @@ namespace re {
 	template<class syntaxType>
 	int re_engine<syntaxType>::exec_compile(const char_type *s, size_t slen, int *err_pos) {
 		anchor = 0; // allow for repeat calls to ::exec_compile
-		code.initialize();
+		code = code_vector_type();
 
 		if (err_pos) {
 			*err_pos = 0; // be optimistic, set err_pos to 0.
@@ -178,7 +182,7 @@ namespace re {
 
 		syntax_error_state = cs.syntax.compile(cs); // perform the compilation
 		if (syntax_error_state) {
-			code.initialize(); // code isn't useful.
+			code = code_vector_type();
 			if (err_pos) {
 				*err_pos = cs.input.offset(); // where the error occurred.
 			}
