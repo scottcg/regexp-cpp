@@ -27,7 +27,7 @@ namespace re {
 
         // Test matching
         const char* text = "aaab";
-        re_ctext<ct> ct(text, strlen(text));
+        ctext<ct> ct(text, strlen(text));
         re_match_vector matches;
         ASSERT_EQ(engine.exec_match(ct), 4);
     }
@@ -42,7 +42,7 @@ namespace re {
 
         // Test no match
         const char* text = "aaac";
-        re_ctext<ct> ct(text, strlen(text));
+        ctext<ct> ct(text, strlen(text));
         re_match_vector matches;
         ASSERT_EQ(engine.exec_match(ct, false, matches), -1);
     }

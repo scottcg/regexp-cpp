@@ -12,7 +12,7 @@ using namespace std;
 
 void testHasSubstring() {
     const auto testString = "Hello, World!";
-    re_ctext<re_char_traits<char>> text(testString, -1);
+    ctext<re_char_traits<char>> text(testString, -1);
     re_char_traits<char>::int_type lastch;
     const bool result = text.has_substring(0, 5, lastch);
     std::cout << "Has substring result: " << (result ? "true" : "false") << std::endl;
@@ -21,7 +21,7 @@ void testHasSubstring() {
 
 void testNoSubstring() {
     const auto testString = "Hello, World!";
-    re_ctext<re_char_traits<char>> text(testString, -1);
+    ctext<re_char_traits<char>> text(testString, -1);
     re_char_traits<char>::int_type lastch;
     const bool result = text.has_substring(0, 3, lastch); // Check for "XYZ" in "Hello, World!"
     std::cout << "No substring result: " << (result ? "true" : "false") << std::endl;
@@ -188,7 +188,7 @@ void test_perl() {
 
     re_engine<syntax_perl<my_traits>> engineForClosure;
 
-    re_ctext<my_traits> text("Hello, World!");
+    ctext<my_traits> text("Hello, World!");
     //auto const searchResult = engine.exec_search(text);
     //cout << "Search result: " << searchResult << endl;
 
@@ -300,7 +300,7 @@ int main() {
 
     const auto str1 = "Hello, ";
     const auto str2 = "World!";
-    const re_ctext<re_char_traits<char>> combinedText(str1, -1, str2);
+    const ctext<re_char_traits<char>> combinedText(str1, -1, str2);
 
     std::cout << "Combined text: ";
     for (int i = 0; i < combinedText.length(); ++i) {

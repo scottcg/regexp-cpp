@@ -10,7 +10,7 @@ namespace re {
 	// expression engine. one can optionally include a new starting position and
 	// length for the resulting virtual string.
 	// objects of this class also have a cursor that can be used to walk the
-	// re_ctext characters, in a bidirectional manner, and members that allow one
+	// ctext characters, in a bidirectional manner, and members that allow one
 	// to capture the current pointer position and return to that position later.
 	//
 	// i don't currently have prefix ++/-- because vc5 is broken. additionally
@@ -18,13 +18,13 @@ namespace re {
 	// class because the compiler will not compile the code otherwise.
 
 	template<class traitsType>
-	class re_ctext {
+	class ctext {
 	public:
 		typedef traitsType traits_type;
 		typedef typename traitsType::char_type char_type;
 		typedef typename traitsType::int_type int_type;
 
-		explicit re_ctext(const char_type *s1, size_t l1 = -1, const char_type *s2 = 0, size_t l2 = -1,
+		explicit ctext(const char_type *s1, size_t l1 = -1, const char_type *s2 = 0, size_t l2 = -1,
 		                  size_t n = -1, size_t len = -1);
 
 		char_type operator ++(int);
@@ -116,7 +116,7 @@ namespace re {
 
 
 	template<class traitsType>
-	re_ctext<traitsType>::re_ctext(const char_type *s1, size_t l1, const char_type *s2, size_t l2,
+	ctext<traitsType>::ctext(const char_type *s1, size_t l1, const char_type *s2, size_t l2,
 	                               size_t n, size_t len) {
 		assert(s1 != nullptr);
 
@@ -172,7 +172,7 @@ namespace re {
 	}
 
 	template<class traitsType>
-	typename re_ctext<traitsType>::char_type re_ctext<traitsType>::operator ++(int) {
+	typename ctext<traitsType>::char_type ctext<traitsType>::operator ++(int) {
 		if (m_text == m_text_end) {
 			if (m_str2 && m_text_end != m_str2_end) {
 				m_text = m_str2;
@@ -183,7 +183,7 @@ namespace re {
 		}
 		if (m_text_end == m_str1_end) {
 			if (m_text < m_str1) {
-				m_text++;
+				++m_text;
 				return 0;
 			}
 		}
@@ -191,11 +191,12 @@ namespace re {
 	}
 
 	template<class traitsType>
-	typename re_ctext<traitsType>::char_type re_ctext<traitsType>::operator --(int) {
+	typename ctext<traitsType>::char_type ctext<traitsType>::operator --(int) {
 		if (m_text_end == m_str1_end) {
 			if (m_text < m_str1) return 0;
 			return *m_text--;
-		} else if (m_str2 && m_text_end == m_str2_end) {
+		}
+		if (m_str2 && m_text_end == m_str2_end) {
 			if (m_text < m_str2) {
 				m_text = m_str1_end - 1;
 				m_text_end = m_str1_end;
@@ -206,18 +207,18 @@ namespace re {
 	}
 
 	template<class traitsType>
-	void re_ctext<traitsType>::reset() {
+	void ctext<traitsType>::reset() {
 		m_text = m_str1;
 		m_text_end = m_str1_end;
 	}
 
 	template<class traitsType>
-	void re_ctext<traitsType>::current(int &ch) const {
+	void ctext<traitsType>::current(int &ch) const {
 		ch = m_text[-1];
 	}
 
 	template<class traitsType>
-	int re_ctext<traitsType>::next(int_type &ch) {
+	int ctext<traitsType>::next(int_type &ch) {
 		if (m_text == m_text_end) {
 			if (!m_str2 || m_text == m_str2_end) return 0; // Return 0 when end is reached
 			m_text = m_str2;
@@ -228,7 +229,7 @@ namespace re {
 	}
 
 	template<class traitsType>
-	void re_ctext<traitsType>::unget(int_type &ch) {
+	void ctext<traitsType>::unget(int_type &ch) {
 		if (m_str2 && m_text_end == m_str2_end) {
 			if (m_text == m_str2) {
 				m_text_end = m_str1_end;
@@ -239,7 +240,7 @@ namespace re {
 	}
 
 	template<class traitsType>
-	int re_ctext<traitsType>::advance(size_t n) {
+	int ctext<traitsType>::advance(size_t n) {
 		while (m_text != m_str1_end && n--) {
 			++m_text;
 		}
@@ -247,33 +248,32 @@ namespace re {
 	}
 
 	template<class traitsType>
-	int re_ctext<traitsType>::length() const {
+	int ctext<traitsType>::length() const {
 		return m_len1 + m_len2;
 	}
 
 	template<class traitsType>
-	bool re_ctext<traitsType>::at_begin() const {
-		return ((m_text == m_str1) ? true : false);
+	bool ctext<traitsType>::at_begin() const {
+		return (m_text == m_str1);
 	}
 
 	template<class traitsType>
-	bool re_ctext<traitsType>::at_end() const {
-		return (m_text == m_str1_end || m_text == m_str2_end) ? true : false;
+	bool ctext<traitsType>::at_end() const {
+		return (m_text == m_str1_end || m_text == m_str2_end);
 	}
 
 	template<class traitsType>
-	int re_ctext<traitsType>::position() const {
+	int ctext<traitsType>::position() const {
 		if (m_text_end == m_str2_end) {
 			// we are on the second string
 			return (m_text - m_str2) + m_len1;
-		} else {
-			if (m_text < m_str1) return 0;
-			return m_text - m_str1;
 		}
+		if (m_text < m_str1) return 0;
+		return m_text - m_str1;
 	}
 
 	template<class traitsType>
-	typename re_ctext<traitsType>::char_type re_ctext<traitsType>::operator [](int i) const {
+	typename ctext<traitsType>::char_type ctext<traitsType>::operator [](const int i) const {
 		auto assize_t = static_cast<size_t>(i);
 		assert(assize_t <= (m_len1 + m_len2)); // <= because we get to null.
 		if (m_str2 && assize_t >= m_len1) {

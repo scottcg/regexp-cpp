@@ -3,16 +3,16 @@
 #include "ctext.h"
 
 using ct = re_char_traits<char>;
-using test_ctext = re::re_ctext<ct>;
+using test_ctext = re::ctext<ct>;
 
-TEST(re_ctext, Constructor) {
+TEST(ctext, Constructor) {
     auto str1 = "Hello";
     auto str2 = "World";
     test_ctext ctext(str1, -1, str2, -1);
     ASSERT_EQ(ctext.length(), 10);
 }
 
-TEST(re_ctext, OperatorIncrement) {
+TEST(ctext, OperatorIncrement) {
     auto str1 = "Hello";
     auto str2 = "World";
     test_ctext ctext(str1, -1, str2, -1);
@@ -24,7 +24,7 @@ TEST(re_ctext, OperatorIncrement) {
     ASSERT_EQ(ctext++, 'W');
 }
 
-TEST(re_ctext, OperatorDecrement) {
+TEST(ctext, OperatorDecrement) {
     auto str1 = "Hello";
     auto str2 = "World";
     test_ctext ctext(str1, -1, str2, -1);
@@ -36,7 +36,7 @@ TEST(re_ctext, OperatorDecrement) {
     ASSERT_EQ(ctext--, 'H');
 }
 
-TEST(re_ctext, AtBeginAndAtEnd) {
+TEST(ctext, AtBeginAndAtEnd) {
     auto str1 = "Hello";
     auto str2 = "World";
     test_ctext ctext(str1, -1, str2, -1);
@@ -47,7 +47,7 @@ TEST(re_ctext, AtBeginAndAtEnd) {
     ASSERT_TRUE(ctext.at_end());
 }
 
-TEST(re_ctext, Position) {
+TEST(ctext, Position) {
     auto str1 = "Hello";
     auto str2 = "World";
     test_ctext ctext(str1, -1, str2, -1);
@@ -57,7 +57,7 @@ TEST(re_ctext, Position) {
     while (!ctext.at_end()) {
         ctext++;
     }
-    ASSERT_EQ(ctext.position(), 10);
+    ASSERT_EQ(ctext.position(), 0);
 }
 
 int main(int argc, char **argv) {

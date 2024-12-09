@@ -22,8 +22,7 @@ namespace re {
 	template class input_string<re_char_traits<char> >;
 	//template class re_input_string< re_char_traits<wchar_t> >;
 
-	template class re_ctext<re_char_traits<char> >;
-	//template class re_ctext< re_char_traits<wchar_t> >;
+	template class ctext<re_char_traits<char> >;
 
 	template<class T>
 	class syntax_base;
@@ -75,7 +74,7 @@ namespace re {
 		typedef input_string<traits_type> source_vector_type;
 		typedef compiled_code_vector<traits_type> code_vector_type;
 		typedef compile_state<traits_type> compile_state_type;
-		typedef re_ctext<traits_type> ctext_type;
+		typedef ctext<traits_type> ctext_type;
 
 
 

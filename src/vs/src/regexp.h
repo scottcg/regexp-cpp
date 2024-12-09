@@ -55,11 +55,12 @@ namespace re {
 		typedef typename traits_type::string_type	string_type;
 		typedef typename traits_type::int_type		int_type;
 		typedef typename traits_type::char_type		char_type;
-		typedef re_ctext<traits_type>		ctext_type;
+		typedef ctext<traits_type>		ctext_type;
 		typedef re_engine<syntax_type>		engine_type;
 		typedef std::shared_ptr<engine_type>			engine_impl_type;
 
 		basic_regular_expression() : _engine(new engine_type()) {}
+
 		basic_regular_expression(const char_type* s, size_t slen) : _engine(new engine_type()) {
 			compile(s, slen);
 		}
@@ -80,13 +81,17 @@ namespace re {
 		}
 
 		void caseless_compares(bool c) { _engine->caseless_cmps = c; }
+
 		void lower_caseless_compares(bool c) { _engine->lower_caseless_cmps = c; }
+
 		size_t maximum_closure_stack() const { return _engine->maximum_closure_stack; }
+
 		void maximum_closure_stack(size_t mx) { _engine->maximum_closure_stack = mx; }
 
 		int compile(const char_type* s, size_t slen = -1, int* err_pos = 0) {
 			return _engine->exec_compile(s, slen, err_pos);
 		}
+
 		int compile(const string_type& s, int* err_pos = 0) {
 			return _engine->exec_compile(s.data(), s.length(), err_pos);
 		}
@@ -97,6 +102,7 @@ namespace re {
 			ctext_type text(s, slen, 0, n);
 			return _engine->exec_match(text);
 		}
+
 		int match(const char_type* s, re_match_vector& m, size_t slen = -1, size_t n = -1) const {
 			ctext_type text(s, slen, 0, n);
 			return _engine->exec_match(text, false, m);
@@ -106,6 +112,7 @@ namespace re {
 			ctext_type text(s.data(), s.length(), 0, 0, pos, n);
 			return _engine->exec_match(text);
 		}
+
 		int match(const string_type& s, re_match_vector& m, size_t pos = 0, size_t n = -1) const {
 			ctext_type text(s.data(), s.length(), 0, 0, pos, n);
 			return _engine->exec_match(text, false, m);
@@ -115,6 +122,7 @@ namespace re {
 			ctext_type text(s, slen, 0, 0, 0, n);
 			return _engine->exec_match(text, true);
 		}
+
 		int partial_match(const string_type& s, size_t pos = 0, size_t n = -1) const {
 			ctext_type text(s.data(), s.length(), 0, 0, pos, n);
 			return _engine->exec_match(text, true);
@@ -124,6 +132,7 @@ namespace re {
 			ctext_type text(s, slen, 0, n);
 			return _engine->exec_search(text);
 		}
+
 		int search(const char_type* s, re_match_vector& m, size_t slen = -1, size_t n = -1) const {
 			ctext_type text(s, slen, 0, 0, n);
 			return _engine->exec_search(text, 0, m);
@@ -133,6 +142,7 @@ namespace re {
 			ctext_type text(s.data(), s.length(), 0, 0, pos, n);
 			return _engine->exec_search(text);
 		}
+
 		int search(const string_type& s, re_match_vector& m, size_t pos = 0, size_t n = -1) const {
 			ctext_type text(s.data(), s.length(), 0, 0, pos, n);
 			return _engine->exec_search(text, 0, m);
