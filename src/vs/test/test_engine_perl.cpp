@@ -7,11 +7,6 @@
 #include "syntax_grep.h"
 #include "syntax_perl.h"
 
-
-#include "syntax_perl.h"
-#include "traits.h"
-#include "engine.h"
-
 using ct = re_char_traits<char>;
 using syntax_perl_t = re::syntax_perl<ct>;
 using re_engine_t = re::re_engine<syntax_perl_t>;

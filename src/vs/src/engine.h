@@ -80,10 +80,6 @@ namespace re {
 
 		re_engine();
 
-		re_engine(const re_engine &that);
-
-		const re_engine &operator =(const re_engine &that);
-
 		int exec_compile(const char_type *s, size_t slen = -1, int *err = nullptr);
 
 		int exec_match(ctext_type &text, bool partial_matches = false,

@@ -13,7 +13,7 @@ namespace re {
 
         EXPECT_EQ(view.next(), 'H');
         EXPECT_EQ(view.next(), 'e');
-        EXPECT_EQ(view.position(), (size_t)2);
+        EXPECT_EQ(view.position(), static_cast<size_t>(2));
     }
 
     TEST(CursorStringViewTest, PreviousCharacter) {
@@ -22,7 +22,7 @@ namespace re {
         view.advance(4); // Move cursor forward
         EXPECT_EQ(view.prev(), 'l');
         EXPECT_EQ(view.prev(), 'l');
-        EXPECT_EQ(view.position(), (size_t)2);
+        EXPECT_EQ(view.position(), static_cast<size_t>(2));
     }
 
     TEST(CursorStringViewTest, AtBeginAndAtEnd) {
@@ -55,11 +55,11 @@ namespace re {
         test_view view("Test");
 
         view.advance(3);
-        EXPECT_EQ(view.position(), (size_t)3);
+        EXPECT_EQ(view.position(), static_cast<size_t>(3));
 
         view.reset();
         EXPECT_TRUE(view.at_begin());
-        EXPECT_EQ(view.position(), (size_t)0);
+        EXPECT_EQ(view.position(), static_cast<size_t>(0));
     }
 
     TEST(CursorStringViewTest, EdgeCases) {
@@ -77,7 +77,7 @@ namespace re {
 
         view.advance(10); // Move beyond the string
         EXPECT_TRUE(view.at_end());
-        EXPECT_EQ(view.position(), (size_t)6);
+        EXPECT_EQ(view.position(), static_cast<size_t>(6));
         EXPECT_EQ(view.next(), '\0');
     }
 
