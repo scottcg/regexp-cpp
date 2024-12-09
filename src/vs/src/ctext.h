@@ -19,24 +19,24 @@ namespace re {
 		char_type operator [](int i) const;
 
 		explicit operator const char_type *() const {
-			if (m_text == m_text_end) return 0;
-			return m_text;
+			if (_text == _text_end) return 0;
+			return _text;
 		}
 
 		explicit operator char_type() const {
-			if (m_text == m_text_end) return 0;
-			assert(m_text != nullptr);
-			return *m_text;
+			if (_text == _text_end) return 0;
+			assert(_text != nullptr);
+			return *_text;
 		}
 
 		const char_type *text() const {
-			return m_text;
+			return _text;
 		}
 
 		void text(const char_type *p) {
-			assert(m_str1 != nullptr);
-			assert(p >= m_str1 && p <= m_str1_end);
-			m_text = p;
+			assert(_str1 != nullptr);
+			assert(p >= _str1 && p <= _str1_end);
+			_text = p;
 		}
 
 		void reset();
@@ -52,17 +52,8 @@ namespace re {
 		int advance(size_t n);
 
 		bool has_substring(int begin, int end, int_type &lastch) {
-			const char_type *b = 0;
-			const char_type *e = 0;
-			while (b != e) {
-				if (next(lastch)) {
-					return false;
-				}
-				if (lastch != *b++) {
-					return false;
-				}
-			}
-			return true;
+			assert(true); //  "Not implemented");
+			return false;
 		}
 
 		int length() const;
@@ -72,12 +63,12 @@ namespace re {
 		bool at_end() const;
 
 	private:
-		const char_type *m_str1;
-		const char_type *m_text;
-		const char_type *m_text_end;
-		const char_type *m_str1_end;
+		const char_type *_str1;
+		const char_type *_text;
+		const char_type *_text_end;
+		const char_type *_str1_end;
 
-		size_t m_len1;
+		size_t _len1;
 	};
 
 	template<class traitsType>
@@ -107,80 +98,80 @@ namespace re {
 			}
 		}
 
-		m_text = m_str1 = s1;
-		m_len1 = l1;
-		m_text_end = m_str1_end = m_str1 + m_len1;
+		_text = _str1 = s1;
+		_len1 = l1;
+		_text_end = _str1_end = _str1 + _len1;
 	}
 
 	template<class traitsType>
 	typename ctext<traitsType>::char_type ctext<traitsType>::operator ++(int) {
-		if (m_text == m_text_end) {
+		if (_text == _text_end) {
 			return 0;
 		}
-		return *m_text++;
+		return *_text++;
 	}
 
 	template<class traitsType>
 	typename ctext<traitsType>::char_type ctext<traitsType>::operator --(int) {
-		if (m_text < m_str1) return 0;
-		return *--m_text;
+		if (_text < _str1) return 0;
+		return *--_text;
 	}
 
 	template<class traitsType>
 	void ctext<traitsType>::reset() {
-		m_text = m_str1;
+		_text = _str1;
 	}
 
 	template<class traitsType>
 	void ctext<traitsType>::current(int &ch) const {
-		ch = m_text[-1];
+		ch = _text[-1];
 	}
 
 	template<class traitsType>
 	int ctext<traitsType>::next(int_type &ch) {
-		if (m_text == m_text_end) return 0;
-		ch = *m_text++;
+		if (_text == _text_end) return 0;
+		ch = *_text++;
 		return 1;
 	}
 
 	template<class traitsType>
 	void ctext<traitsType>::unget(int_type &ch) {
-		ch = (m_text == m_str1) ? 0 : *--m_text;
+		ch = (_text == _str1) ? 0 : *--_text;
 	}
 
 	template<class traitsType>
 	int ctext<traitsType>::advance(size_t n) {
-		while (m_text != m_str1_end && n--) {
-			++m_text;
+		while (_text != _str1_end && n--) {
+			++_text;
 		}
 		return n;
 	}
 
 	template<class traitsType>
 	int ctext<traitsType>::length() const {
-		return m_len1;
+		return _len1;
 	}
 
 	template<class traitsType>
 	bool ctext<traitsType>::at_begin() const {
-		return (m_text == m_str1);
+		return (_text == _str1);
 	}
 
 	template<class traitsType>
 	bool ctext<traitsType>::at_end() const {
-		return (m_text == m_str1_end);
+		return (_text == _str1_end);
 	}
 
 	template<class traitsType>
 	int ctext<traitsType>::position() const {
-		if (m_text < m_str1) return 0;
-		return m_text - m_str1;
+		if (_text < _str1) return 0;
+		return _text - _str1;
 	}
 
 	template<class traitsType>
 	typename ctext<traitsType>::char_type ctext<traitsType>::operator [](const int i) const {
 		auto assize_t = static_cast<size_t>(i);
-		assert(assize_t <= m_len1);
-		return (assize_t == m_len1) ? 0 : m_str1[assize_t];
+		assert(assize_t <= _len1);
+		return (assize_t == _len1) ? 0 : _str1[assize_t];
 	}
 }

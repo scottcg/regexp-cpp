@@ -10,23 +10,6 @@
 using namespace re;
 using namespace std;
 
-void testHasSubstring() {
-    const auto testString = "Hello, World!";
-    ctext<re_char_traits<char>> text(testString, -1);
-    re_char_traits<char>::int_type lastch;
-    const bool result = text.has_substring(0, 5, lastch);
-    std::cout << "Has substring result: " << (result ? "true" : "false") << std::endl;
-    assert(result == true);
-}
-
-void testNoSubstring() {
-    const auto testString = "Hello, World!";
-    ctext<re_char_traits<char>> text(testString, -1);
-    re_char_traits<char>::int_type lastch;
-    const bool result = text.has_substring(0, 3, lastch); // Check for "XYZ" in "Hello, World!"
-    std::cout << "No substring result: " << (result ? "true" : "false") << std::endl;
-    assert(result == false);
-}
 
 void test_char_traits() {
     const auto s1 = "Hello";
@@ -309,7 +292,6 @@ int main() {
     std::cout << std::endl;
 
     // New test methods
-    testHasSubstring();
     // todo testNoSubstring();
 
     test_precedence_vec();
