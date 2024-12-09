@@ -28,6 +28,16 @@ struct re_char_traits<char> : std::char_traits<char> {
     static int toupper(const int_type c) { return std::toupper(c); }
     static int tolower(const int_type c) { return std::tolower(c); }
 
+    static int hexadecimal_to_decimal(int ch) {
+        if (ch >= '0' && ch <= '9')
+            return ch - '0';
+        if (ch >= 'a' && ch <= 'f')
+            return ch - 'a' + 10;
+        if (ch >= 'A' && ch <= 'F')
+            return ch - 'A' + 10;
+        return -1;
+    }
+
     static int cstr_to_decimal_int(const char_type* s) {
         int i = 0;
         char_type ch = 0;
@@ -89,7 +99,7 @@ struct re_char_traits<char> : std::char_traits<char> {
 template<>
 struct re_char_traits<wchar_t> : public std::char_traits<wchar_t> {
     using traits_type = std::char_traits<wchar_t>;
-	typedef std::basic_string<wchar_t, std::char_traits<wchar_t>> string_type;
+	typedef std::basic_string<wchar_t> string_type;
 
     static size_t length(const char_type *s) { return traits_type::length(s); }
     static int isalpha(const int_type c) { return std::iswalpha(c); }
@@ -99,6 +109,16 @@ struct re_char_traits<wchar_t> : public std::char_traits<wchar_t> {
     static int islower(const int_type c) { return std::iswlower(c); }
     static int toupper(const int_type c) { return std::towupper(c); }
     static int tolower(const int_type c) { return std::towlower(c); }
+
+    static int hexadecimal_to_decimal(int ch) {
+        if (ch >= '0' && ch <= '9')
+            return ch - '0';
+        if (ch >= 'a' && ch <= 'f')
+            return ch - 'a' + 10;
+        if (ch >= 'A' && ch <= 'F')
+            return ch - 'A' + 10;
+        return -1;
+    }
 
     static int cstr_to_decimal_int(const char_type* s) {
         int i = 0;

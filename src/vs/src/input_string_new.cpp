@@ -33,7 +33,7 @@ namespace  re {
         }
 
         // Peek at the next character
-        int_type peek() const {
+        char_type peek() const {
             assert(!at_end());
             return _span[_offset];
         }

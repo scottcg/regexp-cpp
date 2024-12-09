@@ -50,7 +50,7 @@ namespace re {
 			v = _str[_offset];
 		}
 
-		void advance(int skip) {
+		void advance(const int skip) {
 			// skip some characters (offset() += skip)
 			assert(skip >= 0);
 			_offset += skip;
@@ -66,7 +66,7 @@ namespace re {
 			return _str[_offset - 2] - '0';
 		}
 
-		int_type peek_number(int_type &n, int max_digits = 6) const {
+		int_type peek_number(int_type &n, size_t max_digits = 6) const {
 			// get an integer, with a max digits
 			assert(max_digits < 7);
 			std::string temp_string;
@@ -84,7 +84,6 @@ namespace re {
 
 		int translate_ctrl_char(int_type &ch); // this needs to go.
 	private:
-		int hexadecimal_to_decimal(int ch); // convert a hex to decimal
 		int get_hexadecimal_digit(int_type &h); // these should now be functions.
 
 		const char_type *_str;
@@ -157,30 +156,18 @@ namespace re {
 	template<class traitsType>
 	int input_string<traitsType>::get_hexadecimal_digit(int_type &h) {
 		int_type c;
-		int value1;
 		get(c);
-		value1 = hexadecimal_to_decimal(c);
+		const int value1 = traits_type::hexadecimal_to_decimal(c);
 		if (value1 == -1) {
 			return -1;
 		}
 
 		get(c);
-		const int value2 = hexadecimal_to_decimal(c);
+		const int value2 = traits_type::hexadecimal_to_decimal(c);
 		if (value2 == -1) {
 			return -1;
 		}
-		h = (int_type) (value1 * 16 + value2);
+		h = static_cast<int_type>(value1 * 16 + value2);
 		return 0;
-	}
-
-	template<class traitsType>
-	int input_string<traitsType>::hexadecimal_to_decimal(int ch) {
-		if (ch >= '0' && ch <= '9')
-			return ch - '0';
-		if (ch >= 'a' && ch <= 'f')
-			return ch - 'a' + 10;
-		if (ch >= 'A' && ch <= 'F')
-			return ch - 'A' + 10;
-		return -1;
 	}
 }

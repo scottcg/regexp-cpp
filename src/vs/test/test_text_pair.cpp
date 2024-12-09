@@ -6,15 +6,15 @@ using ct = re_char_traits<char>;
 using test_ctext = re::re_ctext<ct>;
 
 TEST(re_ctext, Constructor) {
-    const char* str1 = "Hello";
-    const char* str2 = "World";
+    auto str1 = "Hello";
+    auto str2 = "World";
     test_ctext ctext(str1, -1, str2, -1);
     ASSERT_EQ(ctext.length(), 10);
 }
 
 TEST(re_ctext, OperatorIncrement) {
-    const char* str1 = "Hello";
-    const char* str2 = "World";
+    auto str1 = "Hello";
+    auto str2 = "World";
     test_ctext ctext(str1, -1, str2, -1);
     ASSERT_EQ(ctext++, 'H');
     ASSERT_EQ(ctext++, 'e');
@@ -25,8 +25,8 @@ TEST(re_ctext, OperatorIncrement) {
 }
 
 TEST(re_ctext, OperatorDecrement) {
-    const char* str1 = "Hello";
-    const char* str2 = "World";
+    auto str1 = "Hello";
+    auto str2 = "World";
     test_ctext ctext(str1, -1, str2, -1);
     ctext++;
     ctext++;
@@ -37,8 +37,8 @@ TEST(re_ctext, OperatorDecrement) {
 }
 
 TEST(re_ctext, AtBeginAndAtEnd) {
-    const char* str1 = "Hello";
-    const char* str2 = "World";
+    auto str1 = "Hello";
+    auto str2 = "World";
     test_ctext ctext(str1, -1, str2, -1);
     ASSERT_TRUE(ctext.at_begin());
     while (!ctext.at_end()) {
@@ -48,8 +48,8 @@ TEST(re_ctext, AtBeginAndAtEnd) {
 }
 
 TEST(re_ctext, Position) {
-    const char* str1 = "Hello";
-    const char* str2 = "World";
+    auto str1 = "Hello";
+    auto str2 = "World";
     test_ctext ctext(str1, -1, str2, -1);
     ASSERT_EQ(ctext.position(), 0);
     ctext++;
