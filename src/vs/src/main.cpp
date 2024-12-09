@@ -300,7 +300,7 @@ int main() {
 
     const auto str1 = "Hello, ";
     const auto str2 = "World!";
-    const ctext<re_char_traits<char>> combinedText(str1, -1, str2);
+    const ctext<re_char_traits<char>> combinedText(str1, -1);
 
     std::cout << "Combined text: ";
     for (int i = 0; i < combinedText.length(); ++i) {
