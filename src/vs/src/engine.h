@@ -116,8 +116,8 @@ namespace re {
 	re_engine<syntaxType>::re_engine() : code() {
 		anchor = ANCHOR_NONE;
 		syntax_error_state = 1; // default, no compiled expression.
-		caseless_cmps = 0;
-		lower_caseless_cmps = 0;
+		caseless_cmps = false;
+		lower_caseless_cmps = false;
 		using_backrefs = 0;
 		maximum_closure_stack = 4096;
 	}
@@ -213,7 +213,7 @@ namespace re {
 		while (continue_work && code[i] != OP_END) {
 			if (code[i++] == OP_CHAR) {
 				++i; // skip the operator
-				char_count++;
+				++char_count;
 			} else {
 				continue_work = false;
 			}
@@ -260,7 +260,7 @@ namespace re {
 		//typedef int_type		int_type;
 
 	public:
-		re_closure(const int_type *c = 0, const char_type *t = 0, int mi = -1, int mx = -1)
+		re_closure(const int_type *c = nullptr, const char_type *t = nullptr, int mi = -1, int mx = -1)
 			: code(c), text(t), minimum(mi), maximum(mx), matched(0) {
 		}
 
@@ -392,7 +392,7 @@ namespace re {
 		runtime_backref_stack_vector bs(using_backrefs, runtime_backref_stack(0));
 
 		const typename code_vector_type::code_type *code_ptr = code.code();
-		const char_type *last_text = text.text();
+		const char_type *last_text = nullptr;
 
 		bool continue_matching = true;
 		while (continue_matching) {
@@ -420,13 +420,13 @@ namespace re {
 					if (&matches != &default_matches) {
 						matches.push_back(re_match_type(0, text.position()));
 						for (int i = 0; i < using_backrefs; i++) {
-							matches.push_back(re_match_type(0, 0));
+							matches.emplace_back(0, 0);
 						}
 					}
-					if (bs.size()) {
+					if (!bs.empty()) {
 						for (size_t i = 0; i < bs.size(); i++) {
 							runtime_backref_stack &s = bs[i];
-							while (s.size()) {
+							while (!s.empty()) {
 								if (s.back().second == -1) {
 									s.pop_back();
 									continue;
@@ -528,7 +528,7 @@ namespace re {
 				case OP_BACKREF_BEGIN: {
 					int ref = *code_ptr++;
 					while (static_cast<int>(bs.size()) < ref) {
-						bs.push_back(runtime_backref_stack());
+						bs.emplace_back();
 					}
 					runtime_backref_stack &s = bs[ref - 1];
 					s.push_back(runtime_backref(text.position(), -1));
@@ -540,7 +540,7 @@ namespace re {
 
 					assert(ref <= bs.size());
 					runtime_backref_stack &s = bs[ref - 1];
-					assert(s.size() > 0);
+					assert(!s.empty());
 
 					if (s.back().second == -1) {
 						s.back().second = text.position();
@@ -551,9 +551,9 @@ namespace re {
 				}
 
 				case OP_BACKREF: {
-					size_t ref = *code_ptr++;
+					const size_t ref = *code_ptr++;
 					assert(ref <= bs.size());
-					if (ref > bs.size() || bs[ref - 1].size() == 0) {
+					if (ref > bs.size() || bs[ref - 1].empty()) {
 						break;
 					}
 					runtime_backref_stack &s = bs[ref - 1];
@@ -632,18 +632,18 @@ namespace re {
 					int n_matches = 1;
 
 					auto it = mv.begin();
-					if (mv.size()) {
+					if (!mv.empty()) {
 						while (it != mv.end()) {
-							if ((*it).first == my_addr) {
-								n_matches = (*it).second + 1;
+							if (it->first == my_addr) {
+								n_matches = it->second + 1;
 								break;
 							}
-							it++;
+							++it;
 						}
 					}
 
 					if (it == mv.end()) {
-						mv.push_back(std::pair<int, int>(my_addr, 0));
+						mv.emplace_back(my_addr, 0);
 						it = mv.end() - 1;
 					}
 
@@ -654,10 +654,10 @@ namespace re {
 
 
 					if (!m.can_continue()) {
-						(*it).second = 0;
+						it->second = 0;
 						continue;
 					}
-					(*it).second = n_matches;
+					it->second = n_matches;
 
 					m.text = text.text();
 					m.code = code_ptr;
@@ -765,10 +765,10 @@ namespace re {
 						auto it = bs.begin();
 						int p = text.position();
 						while (it != bs.end()) {
-							while ((*it).size()) {
-								if (((*it).back().first > p || (*it).back().second > p)) {
-									if ((*it).size() == 1) {
-										(*it).back().second = -1;
+							while (!it->empty()) {
+								if ((it->back().first > p || it->back().second > p)) {
+									if (it->size() == 1) {
+										it->back().second = -1;
 										break;
 									}
 									it->pop_back();
