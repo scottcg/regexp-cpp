@@ -76,8 +76,6 @@ namespace re {
 		typedef compile_state<traits_type> compile_state_type;
 		typedef ctext<traits_type> ctext_type;
 
-
-
 		static const re_match_vector default_matches;
 
 		re_engine();
@@ -400,7 +398,6 @@ namespace re {
 		while (continue_matching) {
 			bool fail = false;
 			int_type ch = 0;
-			int_type temporary = 0;
 			// remember our last match for use if partial_matching.
 			last_text = text.text();
 
@@ -427,7 +424,7 @@ namespace re {
 						}
 					}
 					if (bs.size()) {
-						for (int i = 0; i < bs.size(); i++) {
+						for (size_t i = 0; i < bs.size(); i++) {
 							runtime_backref_stack &s = bs[i];
 							while (s.size()) {
 								if (s.back().second == -1) {
@@ -539,7 +536,7 @@ namespace re {
 					continue;
 
 				case OP_BACKREF_END: {
-					int ref = *code_ptr++;
+					size_t ref = *code_ptr++;
 
 					assert(ref <= bs.size());
 					runtime_backref_stack &s = bs[ref - 1];
@@ -554,7 +551,7 @@ namespace re {
 				}
 
 				case OP_BACKREF: {
-					int ref = *code_ptr++;
+					size_t ref = *code_ptr++;
 					assert(ref <= bs.size());
 					if (ref > bs.size() || bs[ref - 1].size() == 0) {
 						break;
@@ -763,7 +760,7 @@ namespace re {
 					fail = false;
 
 					// now cleanup the backreference stack.
-					if (bs.size()) {
+					if (!bs.empty()) {
 						// we have some backreferences
 						auto it = bs.begin();
 						int p = text.position();
@@ -774,12 +771,12 @@ namespace re {
 										(*it).back().second = -1;
 										break;
 									}
-									(*it).pop_back();
+									it->pop_back();
 								} else {
 									break;
 								}
 							}
-							it++;
+							++it;
 						}
 					}
 					break;

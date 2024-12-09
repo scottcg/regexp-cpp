@@ -3,7 +3,7 @@
 namespace re {
 	constexpr int MAX_BACKREFS = 256;
 
-    enum tokens : unsigned int {
+    enum tokens : int {
         TOK_END = 0xE00,
         TOK_CHAR = 0xE01,
         TOK_CTRL_CHAR = 0xE02,

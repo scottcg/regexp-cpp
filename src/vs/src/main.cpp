@@ -282,7 +282,6 @@ int main() {
     }
 
     const auto str1 = "Hello, ";
-    const auto str2 = "World!";
     const ctext<re_char_traits<char>> combinedText(str1, -1);
 
     std::cout << "Combined text: ";
@@ -291,8 +290,6 @@ int main() {
     }
     std::cout << std::endl;
 
-    // New test methods
-    // todo testNoSubstring();
 
     test_precedence_vec();
     test_precedence_stack();

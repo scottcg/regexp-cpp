@@ -4,6 +4,7 @@
 #include <cstring>
 #include <cwchar>
 #include <string>
+#include <string_view>
 
 template<class T>
 struct re_char_traits : std::char_traits<T> {
@@ -17,6 +18,7 @@ template<>
 struct re_char_traits<char> : std::char_traits<char> {
     using traits_type = std::char_traits<char>;
 	typedef std::basic_string<char> string_type;
+    typedef std::string_view string_view_type;
 
     static size_t length(const char_type *x) { return traits_type::length(x); }
 
@@ -100,6 +102,7 @@ template<>
 struct re_char_traits<wchar_t> : public std::char_traits<wchar_t> {
     using traits_type = std::char_traits<wchar_t>;
 	typedef std::basic_string<wchar_t> string_type;
+    typedef std::wstring_view string_view_type;
 
     static size_t length(const char_type *s) { return traits_type::length(s); }
     static int isalpha(const int_type c) { return std::iswalpha(c); }
