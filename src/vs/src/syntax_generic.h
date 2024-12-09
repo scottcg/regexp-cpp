@@ -34,7 +34,7 @@ namespace re {
 
 
     template<class traitsT>
-    bool syntax_generic<traitsT>::context_independent_ops() const { return 1; }
+    bool syntax_generic<traitsT>::context_independent_ops() const { return true; }
 
     template<class traitsT>
     int syntax_generic<traitsT>::translate_plain_op(re_compile_state_type &cs) const {
@@ -59,7 +59,7 @@ namespace re {
     }
 
     template<class traitsT>
-    int syntax_generic<traitsT>::precedence(int op) const {
+    int syntax_generic<traitsT>::precedence(const int op) const {
         switch (op) {
             case TOK_END:
                 return 0;
