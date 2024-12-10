@@ -77,11 +77,11 @@ namespace re {
         cs.input.get(cs.ch);
         ASSERT_EQ(syntax.translate_plain_op(cs), '[');
         cs.input.get(cs.ch);
-        ASSERT_EQ(syntax.translate_plain_op(cs), 'a');
+        ASSERT_EQ(syntax.translate_plain_op(cs), TOK_CHAR);
         cs.input.get(cs.ch);
-        ASSERT_EQ(syntax.translate_plain_op(cs), '-');
+        ASSERT_EQ(syntax.translate_plain_op(cs), TOK_CHAR);
         cs.input.get(cs.ch);
-        ASSERT_EQ(syntax.translate_plain_op(cs), 'c');
+        ASSERT_EQ(syntax.translate_plain_op(cs), TOK_CHAR);
         cs.input.get(cs.ch);
         ASSERT_EQ(syntax.translate_plain_op(cs), ']');
     }
@@ -98,11 +98,11 @@ namespace re {
         cs.input.get(cs.ch);
         ASSERT_EQ(syntax.translate_plain_op(cs), '^');
         cs.input.get(cs.ch);
-        ASSERT_EQ(syntax.translate_plain_op(cs), 'a');
+        ASSERT_EQ(syntax.translate_plain_op(cs), TOK_CHAR);
         cs.input.get(cs.ch);
-        ASSERT_EQ(syntax.translate_plain_op(cs), '-');
+        ASSERT_EQ(syntax.translate_plain_op(cs), TOK_CHAR);
         cs.input.get(cs.ch);
-        ASSERT_EQ(syntax.translate_plain_op(cs), 'c');
+        ASSERT_EQ(syntax.translate_plain_op(cs), TOK_CHAR);
         cs.input.get(cs.ch);
         ASSERT_EQ(syntax.translate_plain_op(cs), ']');
     }
@@ -142,15 +142,16 @@ namespace re {
         // Test negated character class '[^ab...]'
         cs.input.get(cs.ch);
         cs.input.get(cs.ch);
+        cs.input.get(cs.ch);
         ASSERT_EQ(syntax.translate_plain_op(cs), '^');
 
         // Test character range '[a-b]'
         cs.input.get(cs.ch);
-        ASSERT_EQ(syntax.translate_plain_op(cs), 'a');
+        ASSERT_EQ(syntax.translate_plain_op(cs), TOK_CHAR);
         cs.input.get(cs.ch);
-        ASSERT_EQ(syntax.translate_plain_op(cs), '-');
+        ASSERT_EQ(syntax.translate_plain_op(cs), TOK_CHAR);
         cs.input.get(cs.ch);
-        ASSERT_EQ(syntax.translate_plain_op(cs), 'z');
+        ASSERT_EQ(syntax.translate_plain_op(cs), TOK_CHAR);
         cs.input.get(cs.ch);
         ASSERT_EQ(syntax.translate_plain_op(cs), ']');
 

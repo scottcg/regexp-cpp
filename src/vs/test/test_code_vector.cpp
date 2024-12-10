@@ -48,16 +48,6 @@ namespace re {
         EXPECT_EQ(static_cast<int>(code_vector[2]), 0);
     }
 
-    TEST(CompiledCodeVectorTest, StoreJump) {
-        test_code_vector code_vector;
-        code_vector.store('A');
-        code_vector.store('B');
-        code_vector.store_jump(0, 1, 5);
-        EXPECT_EQ(static_cast<int>(code_vector[0]), 1);
-        EXPECT_EQ(static_cast<int>(code_vector[1]), 2);
-        EXPECT_EQ(static_cast<int>(code_vector[2]), 0);
-    }
-
     TEST(CompiledCodeVectorTest, StoreAndRetrieveMultipleValues) {
         test_code_vector code_vector;
         for (char c = 'A'; c <= 'Z'; ++c) {

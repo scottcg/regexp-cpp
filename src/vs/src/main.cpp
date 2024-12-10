@@ -225,7 +225,7 @@ void test_compiled_code_vector() {
     assert(static_cast<int>(vec[2]) == 0);
 
     // Test store_jump
-    vec.store_jump(0, 1, 5);
+    vec.store_jump(0, OP_GOTO, 5);
     std::cout << "Values after store_jump: ";
     for (int i = 0; i < vec.offset(); ++i) {
         std::cout << static_cast<int>(vec[i]) << " ";

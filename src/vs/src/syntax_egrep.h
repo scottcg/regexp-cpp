@@ -54,7 +54,6 @@ namespace re {
         cs.input.unget();
 
         return (ch == '|' || ch == ')') ? true : false;
-        return false;
     }
 
     template<class traitsT>
@@ -83,7 +82,6 @@ namespace re {
             default:
                 return syntax_generic<traitsT>::translate_escaped_op(cs);
         }
-        return TOK_CHAR;
     }
 
 }

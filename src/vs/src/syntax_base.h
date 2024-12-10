@@ -6,7 +6,8 @@
 #include "compile.h"
 
 namespace re {
-	template<class traitsType> class compiled_code_vector;
+	template<class traitsType>
+	class compiled_code_vector;
 
 	template<class traitsType>
 	class syntax_base {
@@ -64,8 +65,7 @@ namespace re {
 					}
 				}
 
-				int err = cs.syntax.compile_opcode(cs); // finally, compile a single opcode.
-				if (err) {
+				if (int err = cs.syntax.compile_opcode(cs)) {
 					// syntax error someplace
 					return err;
 				}
@@ -83,12 +83,12 @@ namespace re {
 
 				case TOK_CHAR:
 					//remove cs.output.store(OP_CHAR, cs.ch, cs.prec_stack);
-						cs.prec_stack.start(cs.output.store(OP_CHAR, cs.ch));
+					cs.prec_stack.start(cs.output.store(OP_CHAR, cs.ch));
 					break;
 
 				case '.':
 					//remove cs.output.store(OP_ANY_CHAR, cs.prec_stack);
-						cs.prec_stack.start(cs.output.store(OP_ANY_CHAR));
+					cs.prec_stack.start(cs.output.store(OP_ANY_CHAR));
 					break;
 
 				case '^':
@@ -101,7 +101,7 @@ namespace re {
 							break;
 						}
 					}
-					// remove cs.output.store(OP_BEGIN_OF_LINE, cs.prec_stack);
+				// remove cs.output.store(OP_BEGIN_OF_LINE, cs.prec_stack);
 					cs.prec_stack.start(cs.output.store(OP_BEGIN_OF_LINE));
 					break;
 
@@ -115,7 +115,7 @@ namespace re {
 							break;
 						}
 					}
-					// remove cs.output.store(OP_END_OF_LINE, cs.prec_stack);
+				// remove cs.output.store(OP_END_OF_LINE, cs.prec_stack);
 					cs.prec_stack.start(cs.output.store(OP_END_OF_LINE));
 					break;
 
@@ -132,7 +132,7 @@ namespace re {
 						}
 					}
 
-					// we skip empty expressions for ?, + and * matches
+				// we skip empty expressions for ?, + and * matches
 					if (cs.prec_stack.start() == cs.output.offset()) {
 						break;
 					}
@@ -171,8 +171,8 @@ namespace re {
 					break;
 
 				case TOK_BACKREF:
-						// remove cs.output.store(OP_BACKREF, cs.ch, cs.prec_stack);
-						cs.prec_stack.start(cs.output.store(OP_BACKREF, cs.ch));
+					// remove cs.output.store(OP_BACKREF, cs.ch, cs.prec_stack);
+					cs.prec_stack.start(cs.output.store(OP_BACKREF, cs.ch));
 					break;
 
 				case '(':

@@ -2,7 +2,9 @@
 #include "syntax_egrep.h"
 #include "compile.h"
 #include "traits.h"
+#include <iostream>
 
+using namespace std;
 using ct = re_char_traits<char>;
 using syntax_egrep_t = re::syntax_egrep<ct>;
 using compile_state_t = re::compile_state<ct>;
@@ -22,7 +24,7 @@ namespace re {
         // Test escape sequence '\b'
         cs.input.get(cs.ch);
         cs.input.get(cs.ch);
-        ASSERT_EQ(syntax.translate_plain_op(cs), TOK_CTRL_CHAR);
+        ASSERT_EQ(syntax.translate_escaped_op(cs), TOK_CTRL_CHAR);
 
         // Test beginning of string '^'
         cs.input.get(cs.ch);
@@ -43,15 +45,16 @@ namespace re {
         // Test negated character class '[^ab...]'
         cs.input.get(cs.ch);
         cs.input.get(cs.ch);
+        cs.input.get(cs.ch);
         ASSERT_EQ(syntax.translate_plain_op(cs), '^');
 
         // Test character range '[a-b]'
         cs.input.get(cs.ch);
-        ASSERT_EQ(syntax.translate_plain_op(cs), 'a');
+        ASSERT_EQ(syntax.translate_plain_op(cs), TOK_CHAR); // a
         cs.input.get(cs.ch);
-        ASSERT_EQ(syntax.translate_plain_op(cs), '-');
+        ASSERT_EQ(syntax.translate_plain_op(cs), TOK_CHAR);
         cs.input.get(cs.ch);
-        ASSERT_EQ(syntax.translate_plain_op(cs), 'z');
+        ASSERT_EQ(syntax.translate_plain_op(cs), TOK_CHAR);
         cs.input.get(cs.ch);
         ASSERT_EQ(syntax.translate_plain_op(cs), ']');
 

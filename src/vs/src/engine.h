@@ -92,8 +92,9 @@ namespace re {
 
 		void dump_code(std::ostream& out) const;
 
-	private:
+	public:
 		code_vector_type code;
+	private:
 		short anchor;
 		int syntax_error_state;
 		bool caseless_cmps;
@@ -999,23 +1000,23 @@ namespace re {
 					break;
 
 				case OP_GOTO:
-					out << "OP_GOTO (" << pos << ", +"  << decode_address_and_advance(cp) << ")\n";
+					out << "OP_GOTO (" << pos << ", "  << decode_address_and_advance(cp) << ")\n";
 					break;
 
 				case OP_POP_FAILURE_GOTO:
-					out << "OP_POP_FAILURE_GOTO (" << pos << ", +" << decode_address_and_advance(cp) << ")\n";
+					out << "OP_POP_FAILURE_GOTO (" << pos << ", " << decode_address_and_advance(cp) << ")\n";
 					break;
 
 				case OP_FAKE_FAILURE_GOTO:
-					out << "OP_FAKE_FAILURE_GOTO (" << pos << ", +" << decode_address_and_advance(cp) << ")\n";
+					out << "OP_FAKE_FAILURE_GOTO (" << pos << ", " << decode_address_and_advance(cp) << ")\n";
 					break;
 
 				case OP_PUSH_FAILURE:
-					out << "OP_PUSH_FAILURE (" << pos << ", +" << decode_address_and_advance(cp) << ")\n";
+					out << "OP_PUSH_FAILURE (" << pos << ", " << decode_address_and_advance(cp) << ")\n";
 					break;
 
 				case OP_PUSH_FAILURE2:
-					out << "OP_PUSH_FAILURE2 (" << pos << ", +" << decode_address_and_advance(cp) << ")\n";
+					out << "OP_PUSH_FAILURE2 (" << pos << ", " << decode_address_and_advance(cp) << ")\n";
 					break;
 
 				case OP_POP_FAILURE:

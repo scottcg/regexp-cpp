@@ -80,4 +80,53 @@ namespace re {
     constexpr int MISMATCHED_BRACES = -9;
     constexpr int MISMATCHED_BRACKETS = -10;
     constexpr int MISMATCHED_PARENTHESIS = -11;
+
+	std::string opcode_to_string(int opcode) {
+    switch (opcode) {
+        case OP_END: return "OP_END";
+        case OP_NOOP: return "OP_NOOP";
+        case OP_BACKUP: return "OP_BACKUP";
+        case OP_FORWARD: return "OP_FORWARD";
+        case OP_BEGIN_OF_LINE: return "OP_BEGIN_OF_LINE";
+        case OP_END_OF_LINE: return "OP_END_OF_LINE";
+        case OP_STRING: return "OP_STRING";
+        case OP_BIN_CHAR: return "OP_BIN_CHAR";
+        case OP_NOT_BIN_CHAR: return "OP_NOT_BIN_CHAR";
+        case OP_ANY_CHAR: return "OP_ANY_CHAR";
+        case OP_CHAR: return "OP_CHAR";
+        case OP_NOT_CHAR: return "OP_NOT_CHAR";
+        case OP_RANGE_CHAR: return "OP_RANGE_CHAR";
+        case OP_NOT_RANGE_CHAR: return "OP_NOT_RANGE_CHAR";
+        case OP_BACKREF_BEGIN: return "OP_BACKREF_BEGIN";
+        case OP_BACKREF_END: return "OP_BACKREF_END";
+        case OP_BACKREF: return "OP_BACKREF";
+        case OP_BACKREF_FAIL: return "OP_BACKREF_FAIL";
+        case OP_EXT_BEGIN: return "OP_EXT_BEGIN";
+        case OP_EXT_END: return "OP_EXT_END";
+        case OP_EXT: return "OP_EXT";
+        case OP_NOT_EXT: return "OP_NOT_EXT";
+        case OP_GOTO: return "OP_GOTO";
+        case OP_PUSH_FAILURE: return "OP_PUSH_FAILURE";
+        case OP_PUSH_FAILURE2: return "OP_PUSH_FAILURE2";
+        case OP_POP_FAILURE: return "OP_POP_FAILURE";
+        case OP_POP_FAILURE_GOTO: return "OP_POP_FAILURE_GOTO";
+        case OP_FAKE_FAILURE_GOTO: return "OP_FAKE_FAILURE_GOTO";
+        case OP_CLOSURE: return "OP_CLOSURE";
+        case OP_CLOSURE_INC: return "OP_CLOSURE_INC";
+        case OP_TEST_CLOSURE: return "OP_TEST_CLOSURE";
+        case OP_BEGIN_OF_BUFFER: return "OP_BEGIN_OF_BUFFER";
+        case OP_END_OF_BUFFER: return "OP_END_OF_BUFFER";
+        case OP_BEGIN_OF_WORD: return "OP_BEGIN_OF_WORD";
+        case OP_END_OF_WORD: return "OP_END_OF_WORD";
+        case OP_DIGIT: return "OP_DIGIT";
+        case OP_SPACE: return "OP_SPACE";
+        case OP_WORD: return "OP_WORD";
+        case OP_WORD_BOUNDARY: return "OP_WORD_BOUNDARY";
+        case OP_CASELESS: return "OP_CASELESS";
+        case OP_NO_CASELESS: return "OP_NO_CASELESS";
+        case OP_LCASELESS: return "OP_LCASELESS";
+        case OP_NO_LCASELESS: return "OP_NO_LCASELESS";
+        default: return "UNKNOWN_OPCODE";
+    }
+}
 }
