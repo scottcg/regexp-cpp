@@ -89,7 +89,6 @@ namespace nfa {
                     const auto matches = !(context.input_index < input.size() && input[context.input_index] >= start &&
                                            input[context.input_index] <= end);
 
-                    std::cout << input[context.input_index] << std::endl;
                     if (matches) {
                         context.input_index++; // Consume character
                         context.instruction_index = state_to_index.at(instr.next_states[0]); // Move to next state
@@ -166,6 +165,8 @@ namespace nfa {
                 } else if (instr.opcode == op_codes::end_match) {
                     if (context.input_index == input.size()) return true; // Successfully matched entire input
                     break;
+                } else if (instr.opcode == op_codes::end_no_match) {
+                    return false;
                 } else {
                     break; // Unhandled opcode or error state
                 }
@@ -188,7 +189,7 @@ using namespace nfa;
 
 TEST(test_engine, MathWuthBackreference) {
     // ([a-z]+) \1
-    const std::vector<nfa_instruction> nfa {
+    const std::vector<nfa_instruction> nfa2 {
         {"start", op_codes::start_match, {"group_start"}, {}},
         {"group_start", op_codes::group_start, {"match_chars"}, {"1"}},
         {"match_chars", op_codes::match_char_range, {"match_sequence", "end_match"}, {"a", "z"}},
@@ -199,13 +200,23 @@ TEST(test_engine, MathWuthBackreference) {
         {"end_match", op_codes::end_match, {}, {}},
     };
 
-    EXPECT_TRUE(execute_nfa(nfa, "the the")); // 2 matches
+    // ([a-z]+ )
+    const std::vector<nfa_instruction> nfa {
+            {"start", op_codes::start_match, {"match_chars"}, {}},
+            {"match_chars", op_codes::match_char_range, {"match_sequence", "end_match"}, {"a", "z"}},
+            {"match_sequence", op_codes::loop_count, {"match_chars", "match_space"}, {"1", "-1"}},
+            {"match_space", op_codes::match_char, {"end_match", "end_no_match"}, {" "}},
+            {"end_match", op_codes::end_match, {}, {}},
+            {"end_no_match", op_codes::end_no_match, {}, {}}
+        };
+
+    EXPECT_TRUE(execute_nfa(nfa, "thethe ")); // 2 matches
     EXPECT_FALSE(execute_nfa(nfa, "the dog the")); // Less than 2 matches
 }
 
 TEST(test_engine, MatchDogCatWithIntervals) {
     // (dog|cat){2,4}
-    std::vector<nfa_instruction> nfa{
+    std::vector<nfa_instruction> nfa {
         {"start", op_codes::start_match, {"group_start"}, {}},
         {"group_start", op_codes::choice, {"match_dog", "match_cat"}, {}},
         {"match_dog", op_codes::match_string, {"group_end"}, {"dog"}},
