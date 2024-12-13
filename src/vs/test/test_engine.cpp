@@ -25,6 +25,8 @@ namespace nfa {
         loop_count, // {min,max}, {min,} default of -1 is infinity, ok to start at 0
         matched,
         unmatched,
+
+        transition,
         end_match,
         end_no_match
     };
@@ -146,11 +148,13 @@ namespace nfa {
                     // Continue with the first alternative
                     context.instruction_index = state_to_index.at(instr.next_states[0]);
                 } else if (instr.opcode == op_codes::group_start) {
+                    context.instruction_index = state_to_index.at(instr.next_states[0]);
                     const int id = std::stoi(instr.arguments[0]);
                     // save the input location to a map
                     back_references[id] = "";
                     break;
                 } else if (instr.opcode == op_codes::group_end) {
+                    context.instruction_index = state_to_index.at(instr.next_states[0]);
                     const int id = std::stoi(instr.arguments[0]);
                     back_references[id] = "test";
                     // check length from the map and get difference and put the test in backref map
@@ -161,6 +165,9 @@ namespace nfa {
                     auto value = back_references[id];
                     // compare value to input buffer
                     // grab backref value and do a string compare (check lengths of the string)
+                    break;
+                } else if (instr.opcode == op_codes::transition) {
+                    context.instruction_index = state_to_index.at(instr.next_states[0]);
                     break;
                 } else if (instr.opcode == op_codes::end_match) {
                     if (context.input_index == input.size()) return true; // Successfully matched entire input
@@ -187,9 +194,9 @@ namespace nfa {
 
 using namespace nfa;
 
-TEST(test_engine, MathWuthBackreference) {
+TEST(test_engine, MatchWithBackreference) {
     // ([a-z]+) \1
-    const std::vector<nfa_instruction> nfa2 {
+    const std::vector<nfa_instruction> nfa2{
         {"start", op_codes::start_match, {"group_start"}, {}},
         {"group_start", op_codes::group_start, {"match_chars"}, {"1"}},
         {"match_chars", op_codes::match_char_range, {"match_sequence", "end_match"}, {"a", "z"}},
@@ -200,23 +207,23 @@ TEST(test_engine, MathWuthBackreference) {
         {"end_match", op_codes::end_match, {}, {}},
     };
 
-    // ([a-z]+ )
-    const std::vector<nfa_instruction> nfa {
-            {"start", op_codes::start_match, {"match_chars"}, {}},
-            {"match_chars", op_codes::match_char_range, {"match_sequence", "end_match"}, {"a", "z"}},
-            {"match_sequence", op_codes::loop_count, {"match_chars", "match_space"}, {"1", "-1"}},
-            {"match_space", op_codes::match_char, {"end_match", "end_no_match"}, {" "}},
-            {"end_match", op_codes::end_match, {}, {}},
-            {"end_no_match", op_codes::end_no_match, {}, {}}
-        };
-
-    EXPECT_TRUE(execute_nfa(nfa, "thethe ")); // 2 matches
-    EXPECT_FALSE(execute_nfa(nfa, "the dog the")); // Less than 2 matches
+    // "([a-z]+) "
+    const std::vector<nfa_instruction> nfa1{
+        {"start", op_codes::start_match, {"match_chars"}, {}},
+        {"match_chars", op_codes::match_char_range, {"match_sequence", "end_match"}, {"a", "z"}},
+        {"match_sequence", op_codes::loop_count, {"match_chars", "match_space"}, {"1", "-1"}},
+        {"match_space", op_codes::match_char, {"end_match", "end_no_match"}, {" "}},
+        {"end_match", op_codes::end_match, {}, {}},
+        {"end_no_match", op_codes::end_no_match, {}, {}}
+    };
+    EXPECT_TRUE(execute_nfa(nfa1, "ab "));
+    EXPECT_FALSE(execute_nfa(nfa1, "ab"));
+    EXPECT_FALSE(execute_nfa(nfa1, "12 "));
 }
 
 TEST(test_engine, MatchDogCatWithIntervals) {
     // (dog|cat){2,4}
-    std::vector<nfa_instruction> nfa {
+    std::vector<nfa_instruction> nfa{
         {"start", op_codes::start_match, {"group_start"}, {}},
         {"group_start", op_codes::choice, {"match_dog", "match_cat"}, {}},
         {"match_dog", op_codes::match_string, {"group_end"}, {"dog"}},
