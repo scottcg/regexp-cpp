@@ -50,7 +50,7 @@ namespace enfa {
         std::unordered_map<int, int> loop_counter; // Tracks iterations for `loop_count`
     };
 
-    bool _execute_nfa(const std::vector<nfa_instruction> &instructions,
+    bool match_nfa(const std::vector<nfa_instruction> &instructions,
                      const std::unordered_map<std::string, int> &state_to_index, const std::string &input) {
         std::stack<state_context> state_stack;
         state_stack.push({state_to_index.at("start"), 0});
@@ -65,7 +65,7 @@ namespace enfa {
             while (context.instruction_index < instructions.size() && context.input_index <= input.size()) {
                 const nfa_instruction &instr = instructions[context.instruction_index];
 
-                std::cout << "State: " << instr.state_id << ", Opcode: " << static_cast<int>(instr.opcode)<< ", Input Index: " << context.input_index<< ", Current Input Char: "<< (context.input_index < input.size() ? input[context.input_index] : ' ') << "\n";
+                // std::cout << "State: " << instr.state_id << ", Opcode: " << static_cast<int>(instr.opcode)<< ", Input Index: " << context.input_index<< ", Current Input Char: "<< (context.input_index < input.size() ? input[context.input_index] : ' ') << "\n";
 
                 if (instr.opcode == op_codes::start) {
                     if (context.input_index != 0) break; // Ensure starting at beginning
@@ -246,12 +246,12 @@ namespace enfa {
         return false;
     }
 
-    bool execute_nfa(const std::vector<nfa_instruction> &instructions, const std::string &input) {
+    bool exec_nfa(const std::vector<nfa_instruction> &instructions, const std::string &input) {
         std::unordered_map<std::string, int> state_to_index;
         for (auto i = 0; i < instructions.size(); ++i) {
             state_to_index[instructions[i].state_id] = i;
         }
-        return _execute_nfa(instructions, state_to_index, input);
+        return match_nfa(instructions, state_to_index, input);
     }
 }
 
@@ -265,8 +265,8 @@ TEST(test_engine_nx, BasicMatchString) {
         {"fail", op_codes::failure, {}, {}},
         {"success", op_codes::success, {}, {}},
     };
-    ASSERT_TRUE(execute_nfa(nfa, "text"));
-    ASSERT_FALSE(execute_nfa(nfa, "no-matched"));
+    ASSERT_TRUE(exec_nfa(nfa, "text"));
+    ASSERT_FALSE(exec_nfa(nfa, "no-matched"));
 }
 
 TEST(test_engine_nx, BasicMatchAlternate) {
@@ -280,8 +280,8 @@ TEST(test_engine_nx, BasicMatchAlternate) {
         {"success", op_codes::success, {}, {}}
     };
 
-    EXPECT_TRUE(execute_nfa(nfa, "a"));
-    EXPECT_TRUE(execute_nfa(nfa, "d"));
+    EXPECT_TRUE(exec_nfa(nfa, "a"));
+    EXPECT_TRUE(exec_nfa(nfa, "d"));
 }
 
 TEST(test_engine_nx, BasicMatchRange) {
@@ -292,8 +292,8 @@ TEST(test_engine_nx, BasicMatchRange) {
         {"fail", op_codes::failure, {}, {}},
         {"success", op_codes::success, {}, {}},
     };
-    ASSERT_TRUE(execute_nfa(nfa, "s"));
-    ASSERT_FALSE(execute_nfa(nfa, "a"));
+    ASSERT_TRUE(exec_nfa(nfa, "s"));
+    ASSERT_FALSE(exec_nfa(nfa, "a"));
 }
 
 TEST(test_engine_nx, BasicMatchRangeNot) {
@@ -304,8 +304,8 @@ TEST(test_engine_nx, BasicMatchRangeNot) {
         {"fail", op_codes::failure, {}, {}},
         {"success", op_codes::success, {}, {}},
     };
-    ASSERT_FALSE(execute_nfa(nfa, "s"));
-    ASSERT_TRUE(execute_nfa(nfa, "a"));
+    ASSERT_FALSE(exec_nfa(nfa, "s"));
+    ASSERT_TRUE(exec_nfa(nfa, "a"));
 }
 
 TEST(test_engine_nx, CountMatchRangeCount) {
@@ -317,10 +317,10 @@ TEST(test_engine_nx, CountMatchRangeCount) {
         {"fail", op_codes::failure, {}, {}},
         {"success", op_codes::success, {}, {}},
     };
-    ASSERT_TRUE(execute_nfa(nfa, "s"));
-    ASSERT_TRUE(execute_nfa(nfa, "ss"));
-    ASSERT_TRUE(execute_nfa(nfa, "sss"));
-    ASSERT_FALSE(execute_nfa(nfa, "9"));
+    ASSERT_TRUE(exec_nfa(nfa, "s"));
+    ASSERT_TRUE(exec_nfa(nfa, "ss"));
+    ASSERT_TRUE(exec_nfa(nfa, "sss"));
+    ASSERT_FALSE(exec_nfa(nfa, "9"));
 }
 
 
@@ -335,12 +335,12 @@ TEST(test_engine_nx, MatchRangeWithKleeneStar) {
     };
 
     // Test cases for Kleene Star behavior
-    ASSERT_TRUE(execute_nfa(nfa, "")); // Zero matches
-    ASSERT_TRUE(execute_nfa(nfa, "a")); // Single match
-    ASSERT_TRUE(execute_nfa(nfa, "abc")); // Multiple matches
-    ASSERT_TRUE(execute_nfa(nfa, "z")); // Edge of range
-    ASSERT_FALSE(execute_nfa(nfa, "1")); // Non-matching input
-    ASSERT_FALSE(execute_nfa(nfa, "a1b")); // Mixed valid/invalid input
+    ASSERT_TRUE(exec_nfa(nfa, "")); // Zero matches
+    ASSERT_TRUE(exec_nfa(nfa, "a")); // Single match
+    ASSERT_TRUE(exec_nfa(nfa, "abc")); // Multiple matches
+    ASSERT_TRUE(exec_nfa(nfa, "z")); // Edge of range
+    ASSERT_FALSE(exec_nfa(nfa, "1")); // Non-matching input
+    ASSERT_FALSE(exec_nfa(nfa, "a1b")); // Mixed valid/invalid input
 }
 
 TEST(test_engine_nx, MatchRangeWithKleeneStarAndChar) {
@@ -355,14 +355,14 @@ TEST(test_engine_nx, MatchRangeWithKleeneStarAndChar) {
     };
 
     // Test cases for [a-z]*9
-    ASSERT_TRUE(execute_nfa(nfa, "9")); // Zero matches followed by '9'
-    ASSERT_TRUE(execute_nfa(nfa, "a9")); // Single match followed by '9'
-    ASSERT_TRUE(execute_nfa(nfa, "abc9")); // Multiple matches followed by '9'
-    ASSERT_TRUE(execute_nfa(nfa, "z9")); // Edge case: last letter followed by '9'
-    ASSERT_FALSE(execute_nfa(nfa, "a")); // Missing '9'
-    ASSERT_FALSE(execute_nfa(nfa, "a19")); // Invalid character in between
-    ASSERT_FALSE(execute_nfa(nfa, "xyz")); // Missing '9'
-    ASSERT_FALSE(execute_nfa(nfa, "19")); // Starts with invalid character
+    ASSERT_TRUE(exec_nfa(nfa, "9")); // Zero matches followed by '9'
+    ASSERT_TRUE(exec_nfa(nfa, "a9")); // Single match followed by '9'
+    ASSERT_TRUE(exec_nfa(nfa, "abc9")); // Multiple matches followed by '9'
+    ASSERT_TRUE(exec_nfa(nfa, "z9")); // Edge case: last letter followed by '9'
+    ASSERT_FALSE(exec_nfa(nfa, "a")); // Missing '9'
+    ASSERT_FALSE(exec_nfa(nfa, "a19")); // Invalid character in between
+    ASSERT_FALSE(exec_nfa(nfa, "xyz")); // Missing '9'
+    ASSERT_FALSE(exec_nfa(nfa, "19")); // Starts with invalid character
 }
 
 TEST(test_engine_nx, MatchWithBackreference) {
@@ -386,11 +386,11 @@ TEST(test_engine_nx, MatchWithBackreference) {
     };
 
     // Test cases for ([a-z]) \1
-    ASSERT_TRUE(execute_nfa(nfa, "a a")); // Same letter with space
-    ASSERT_TRUE(execute_nfa(nfa, "b b")); // Same letter with space
-    ASSERT_FALSE(execute_nfa(nfa, "a b")); // Different letters
-    ASSERT_FALSE(execute_nfa(nfa, "a  a")); // Extra space
-    ASSERT_FALSE(execute_nfa(nfa, "a1 a")); // Invalid character
+    ASSERT_TRUE(exec_nfa(nfa, "a a")); // Same letter with space
+    ASSERT_TRUE(exec_nfa(nfa, "b b")); // Same letter with space
+    ASSERT_FALSE(exec_nfa(nfa, "a b")); // Different letters
+    ASSERT_FALSE(exec_nfa(nfa, "a  a")); // Extra space
+    ASSERT_FALSE(exec_nfa(nfa, "a1 a")); // Invalid character
 }
 
 TEST(test_engine_nx, MatchStartOfLine) {
@@ -403,8 +403,8 @@ TEST(test_engine_nx, MatchStartOfLine) {
         {"success", op_codes::success, {}, {}},
     };
 
-    ASSERT_TRUE(execute_nfa(nfa, "a")); // Start of line matches 'a'
-    ASSERT_FALSE(execute_nfa(nfa, "ba")); // 'a' is not at the start
+    ASSERT_TRUE(exec_nfa(nfa, "a")); // Start of line matches 'a'
+    ASSERT_FALSE(exec_nfa(nfa, "ba")); // 'a' is not at the start
 }
 
 TEST(test_engine_nx, MatchEndOfLine) {
@@ -417,8 +417,8 @@ TEST(test_engine_nx, MatchEndOfLine) {
         {"success", op_codes::success, {}, {}},
     };
 
-    ASSERT_TRUE(execute_nfa(nfa, "a")); // 'a' is at the end
-    ASSERT_FALSE(execute_nfa(nfa, "ab")); // 'a' is not at the end
+    ASSERT_TRUE(exec_nfa(nfa, "a")); // 'a' is at the end
+    ASSERT_FALSE(exec_nfa(nfa, "ab")); // 'a' is not at the end
 }
 
 TEST(test_engine_nx, MatchStartAndEndOfLine) {
@@ -432,10 +432,10 @@ TEST(test_engine_nx, MatchStartAndEndOfLine) {
         {"success", op_codes::success, {}, {}},
     };
 
-    ASSERT_TRUE(execute_nfa(nfa, "a")); // Matches 'a' exactly
-    ASSERT_FALSE(execute_nfa(nfa, "ab")); // Extra character at the end
-    ASSERT_FALSE(execute_nfa(nfa, "ba")); // Extra character at the start
-    ASSERT_FALSE(execute_nfa(nfa, "")); // Empty string
+    ASSERT_TRUE(exec_nfa(nfa, "a")); // Matches 'a' exactly
+    ASSERT_FALSE(exec_nfa(nfa, "ab")); // Extra character at the end
+    ASSERT_FALSE(exec_nfa(nfa, "ba")); // Extra character at the start
+    ASSERT_FALSE(exec_nfa(nfa, "")); // Empty string
 }
 
 
