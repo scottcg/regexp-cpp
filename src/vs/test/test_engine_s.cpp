@@ -5,11 +5,19 @@
 #include <string>
 #include <gtest/gtest.h>
 
-// Represents an NFA state
+enum StateType {
+    NORMAL,          // Regular transition
+    BEGIN_GROUP,     // Start of a group
+    END_GROUP,       // End of a group
+    BACK_REFERENCE   // Back-reference to a group
+};
+
 struct State {
     int id;
     bool is_accept = false;
-    std::vector<std::pair<char, State*>> transitions; // (symbol, next state)
+    int group_id = -1; // Group ID for BEGIN_GROUP and END_GROUP
+    std::vector<std::pair<char, State*>> transitions;
+    StateType type = NORMAL;
 };
 
 struct NFA {
@@ -22,7 +30,7 @@ int state_counter = 0;
 
 // Utility to create a new state
 State* create_state(bool is_accept = false) {
-    return new State{state_counter++, is_accept, {}};
+    return new State{state_counter++, is_accept, -1, {}};
 }
 
 // Helper: Add a transition between two states
@@ -77,6 +85,26 @@ NFA repetition(const NFA& nfa) {
     return {start, accept};
 }
 
+NFA begin_group(int group_id) {
+    State* start = create_state();
+    start->type = BEGIN_GROUP;
+    start->group_id = group_id;
+
+    State* accept = create_state();
+    add_transition(start, accept, '\0'); // ε-transition
+    return {start, accept};
+}
+
+NFA end_group(int group_id) {
+    State* start = create_state();
+    start->type = END_GROUP;
+    start->group_id = group_id;
+
+    State* accept = create_state();
+    add_transition(start, accept, '\0'); // ε-transition
+    return {start, accept};
+}
+
 // Compute the epsilon closure of a set of states
 void epsilon_closure(std::unordered_set<State*>& states) {
     std::queue<State*> to_process;
@@ -97,25 +125,54 @@ void epsilon_closure(std::unordered_set<State*>& states) {
 
 // Execute NFA on input string
 bool execute_nfa(const NFA& nfa, const std::string& input) {
-    std::unordered_set<State*> current_states = {nfa.start};
-    epsilon_closure(current_states);
+    struct Frame {
+        State* state;
+        int input_index;
+        std::unordered_map<int, std::string> group_captures; // Captured groups
+    };
 
-    for (char c : input) {
-        std::unordered_set<State*> next_states;
+    std::queue<Frame> state_queue;
+    state_queue.push({nfa.start, 0, {}});
 
-        for (State* state : current_states) {
-            for (const auto& [symbol, next] : state->transitions) {
-                if (symbol == c) next_states.insert(next);
+    while (!state_queue.empty()) {
+        Frame frame = state_queue.front();
+        state_queue.pop();
+
+        State* state = frame.state;
+        int index = frame.input_index;
+
+        // Accept state check
+        if (state->is_accept && index == input.size()) {
+            // Debug: Print captured groups
+            for (const auto& [group_id, capture] : frame.group_captures) {
+                std::cout << "Group " << group_id << ": " << capture << "\n";
             }
+            return true;
         }
 
-        current_states = std::move(next_states);
-        epsilon_closure(current_states); // Compute ε-closure of new states
+        // Process BEGIN_GROUP: Mark starting position
+        if (state->type == BEGIN_GROUP) {
+            frame.group_captures[state->group_id] = ""; // Clear group
+            frame.group_captures[state->group_id] += input.substr(index);
+        }
+
+        // Process END_GROUP: Capture substring
+        if (state->type == END_GROUP) {
+            int start_pos = frame.group_captures[state->group_id].size();
+            frame.group_captures[state->group_id] =
+                input.substr(index - start_pos, start_pos);
+        }
+
+        // Process transitions
+        for (const auto& [symbol, next] : state->transitions) {
+            if (symbol == '\0') { // ε-transition
+                state_queue.push({next, index, frame.group_captures});
+            } else if (index < input.size() && symbol == input[index]) {
+                state_queue.push({next, index + 1, frame.group_captures});
+            }
+        }
     }
 
-    for (State* state : current_states) {
-        if (state->is_accept) return true;
-    }
     return false;
 }
 
@@ -202,6 +259,23 @@ TEST(NFATest, ComplexRepetition) {
     EXPECT_FALSE(execute_nfa(pattern, "d"));
     EXPECT_FALSE(execute_nfa(pattern, "a"));
     EXPECT_FALSE(execute_nfa(pattern, "aabd"));
+}
+
+TEST(NFATest, GroupCapture) {
+    // Regex: (a|b)
+    NFA a = build_literal('a');
+    NFA b = build_literal('b');
+    NFA group_start = begin_group(1);
+    NFA group_end = end_group(1);
+
+    NFA alt = alternation(a, b);
+    NFA group = concatenate(group_start, concatenate(alt, group_end));
+
+    group.accept->is_accept = true;
+
+    EXPECT_TRUE(execute_nfa(group, "a")); // Should capture group 1: "a"
+    EXPECT_TRUE(execute_nfa(group, "b")); // Should capture group 1: "b"
+    EXPECT_FALSE(execute_nfa(group, "c"));
 }
 
 TEST(NFATest, EmptyString) {
