@@ -3,6 +3,7 @@
 #include <queue>
 #include <unordered_set>
 #include <string>
+#include <memory>
 #include <gtest/gtest.h>
 
 enum StateType {
@@ -16,32 +17,32 @@ struct State {
     int id;
     bool is_accept = false;
     int group_id = -1; // Group ID for BEGIN_GROUP and END_GROUP
-    std::vector<std::pair<char, State*>> transitions;
+    std::vector<std::pair<char, std::shared_ptr<State>>> transitions;
     StateType type = NORMAL;
 };
 
 struct NFA {
-    State* start;
-    State* accept;
+    std::shared_ptr<State> start;
+    std::shared_ptr<State> accept;
 };
 
 // Global state counter for unique IDs
 int state_counter = 0;
 
 // Utility to create a new state
-State* create_state(bool is_accept = false) {
-    return new State{state_counter++, is_accept, -1, {}};
+std::shared_ptr<State> create_state(bool is_accept = false) {
+    return std::make_shared<State>(State{state_counter++, is_accept, -1, {}});
 }
 
 // Helper: Add a transition between two states
-void add_transition(State* from, State* to, char symbol) {
+void add_transition(const std::shared_ptr<State>& from, const std::shared_ptr<State>& to, char symbol) {
     from->transitions.emplace_back(symbol, to);
 }
 
 // Build NFA for a single literal character
 NFA build_literal(char c) {
-    State* start = create_state();
-    State* accept = create_state(true);
+    const auto start = create_state();
+    const auto accept = create_state(true);
     add_transition(start, accept, c);
     return {start, accept};
 }
@@ -55,8 +56,8 @@ NFA concatenate(const NFA& first, const NFA& second) {
 
 // Alternation: a|b
 NFA alternation(const NFA& first, const NFA& second) {
-    State* start = create_state();
-    State* accept = create_state(true);
+    const auto start = create_state();
+    const auto accept = create_state(true);
 
     add_transition(start, first.start, '\0'); // ε-transition
     add_transition(start, second.start, '\0'); // ε-transition
@@ -72,8 +73,8 @@ NFA alternation(const NFA& first, const NFA& second) {
 
 // Repetition: a*
 NFA repetition(const NFA& nfa) {
-    State* start = create_state();
-    State* accept = create_state(true);
+    const auto start = create_state();
+    const auto accept = create_state(true);
 
     add_transition(start, nfa.start, '\0'); // ε-transition to NFA
     add_transition(start, accept, '\0');   // ε-transition to accept
@@ -86,33 +87,33 @@ NFA repetition(const NFA& nfa) {
 }
 
 NFA begin_group(int group_id) {
-    State* start = create_state();
+    const auto start = create_state();
     start->type = BEGIN_GROUP;
     start->group_id = group_id;
 
-    State* accept = create_state();
+    const auto accept = create_state();
     add_transition(start, accept, '\0'); // ε-transition
     return {start, accept};
 }
 
 NFA end_group(int group_id) {
-    State* start = create_state();
+    const auto start = create_state();
     start->type = END_GROUP;
     start->group_id = group_id;
 
-    State* accept = create_state();
+    const auto accept = create_state();
     add_transition(start, accept, '\0'); // ε-transition
     return {start, accept};
 }
 
 // Compute the epsilon closure of a set of states
-void epsilon_closure(std::unordered_set<State*>& states) {
-    std::queue<State*> to_process;
+void epsilon_closure(std::unordered_set<std::shared_ptr<State>>& states) {
+    std::queue<std::shared_ptr<State>> to_process;
 
-    for (State* s : states) to_process.push(s);
+    for (const auto& s : states) to_process.push(s);
 
     while (!to_process.empty()) {
-        State* current = to_process.front();
+        const auto current = to_process.front();
         to_process.pop();
 
         for (const auto& [symbol, next] : current->transitions) {
@@ -126,7 +127,7 @@ void epsilon_closure(std::unordered_set<State*>& states) {
 // Execute NFA on input string
 bool execute_nfa(const NFA& nfa, const std::string& input) {
     struct Frame {
-        State* state;
+        std::shared_ptr<State> state;
         int input_index;
         std::unordered_map<int, std::string> group_captures; // Captured groups
     };
@@ -138,34 +139,30 @@ bool execute_nfa(const NFA& nfa, const std::string& input) {
         Frame frame = state_queue.front();
         state_queue.pop();
 
-        State* state = frame.state;
-        int index = frame.input_index;
+        const auto state = frame.state;
+        const int index = frame.input_index;
 
         // Accept state check
         if (state->is_accept && index == input.size()) {
-            // Debug: Print captured groups
             for (const auto& [group_id, capture] : frame.group_captures) {
                 std::cout << "Group " << group_id << ": " << capture << "\n";
             }
             return true;
         }
 
-        // Process BEGIN_GROUP: Mark starting position
         if (state->type == BEGIN_GROUP) {
-            frame.group_captures[state->group_id] = ""; // Clear group
+            frame.group_captures[state->group_id] = "";
             frame.group_captures[state->group_id] += input.substr(index);
         }
 
-        // Process END_GROUP: Capture substring
         if (state->type == END_GROUP) {
-            int start_pos = frame.group_captures[state->group_id].size();
+            const auto start_pos = frame.group_captures[state->group_id].size();
             frame.group_captures[state->group_id] =
                 input.substr(index - start_pos, start_pos);
         }
 
-        // Process transitions
         for (const auto& [symbol, next] : state->transitions) {
-            if (symbol == '\0') { // ε-transition
+            if (symbol == '\0') {
                 state_queue.push({next, index, frame.group_captures});
             } else if (index < input.size() && symbol == input[index]) {
                 state_queue.push({next, index + 1, frame.group_captures});
@@ -178,16 +175,16 @@ bool execute_nfa(const NFA& nfa, const std::string& input) {
 
 // Google Test cases
 TEST(NFATest, LiteralMatch) {
-    NFA nfa = build_literal('a');
+    const NFA nfa = build_literal('a');
 
     EXPECT_TRUE(execute_nfa(nfa, "a"));
     EXPECT_FALSE(execute_nfa(nfa, "b"));
 }
 
 TEST(NFATest, Concatenation) {
-    NFA a = build_literal('a');
-    NFA b = build_literal('b');
-    NFA ab = concatenate(a, b);
+    const NFA a = build_literal('a');
+    const NFA b = build_literal('b');
+    const NFA ab = concatenate(a, b);
 
     EXPECT_TRUE(execute_nfa(ab, "ab"));
     EXPECT_FALSE(execute_nfa(ab, "a"));
@@ -195,9 +192,9 @@ TEST(NFATest, Concatenation) {
 }
 
 TEST(NFATest, Alternation) {
-    NFA a = build_literal('a');
-    NFA b = build_literal('b');
-    NFA a_or_b = alternation(a, b);
+    const NFA a = build_literal('a');
+    const NFA b = build_literal('b');
+    const NFA a_or_b = alternation(a, b);
 
     EXPECT_TRUE(execute_nfa(a_or_b, "a"));
     EXPECT_TRUE(execute_nfa(a_or_b, "b"));
@@ -205,8 +202,8 @@ TEST(NFATest, Alternation) {
 }
 
 TEST(NFATest, Repetition) {
-    NFA a = build_literal('a');
-    NFA a_star = repetition(a);
+    const NFA a = build_literal('a');
+    const NFA a_star = repetition(a);
 
     EXPECT_TRUE(execute_nfa(a_star, ""));
     EXPECT_TRUE(execute_nfa(a_star, "a"));
@@ -216,10 +213,10 @@ TEST(NFATest, Repetition) {
 
 TEST(NFATest, ComplexConcatenation) {
     // Regex: "abc"
-    NFA a = build_literal('a');
-    NFA b = build_literal('b');
-    NFA c = build_literal('c');
-    NFA abc = concatenate(concatenate(a, b), c);
+    const NFA a = build_literal('a');
+    const NFA b = build_literal('b');
+    const NFA c = build_literal('c');
+    const NFA abc = concatenate(concatenate(a, b), c);
 
     EXPECT_TRUE(execute_nfa(abc, "abc"));
     EXPECT_FALSE(execute_nfa(abc, "ab"));
@@ -229,11 +226,11 @@ TEST(NFATest, ComplexConcatenation) {
 
 TEST(NFATest, NestedAlternation) {
     // Regex: "a|(b|c)"
-    NFA a = build_literal('a');
-    NFA b = build_literal('b');
-    NFA c = build_literal('c');
-    NFA b_or_c = alternation(b, c);
-    NFA a_or_b_or_c = alternation(a, b_or_c);
+    const NFA a = build_literal('a');
+    const NFA b = build_literal('b');
+    const NFA c = build_literal('c');
+    const NFA b_or_c = alternation(b, c);
+    const NFA a_or_b_or_c = alternation(a, b_or_c);
 
     EXPECT_TRUE(execute_nfa(a_or_b_or_c, "a"));
     EXPECT_TRUE(execute_nfa(a_or_b_or_c, "b"));
@@ -244,12 +241,12 @@ TEST(NFATest, NestedAlternation) {
 
 TEST(NFATest, ComplexRepetition) {
     // Regex: "a*(b|c)"
-    NFA a = build_literal('a');
-    NFA a_star = repetition(a);
-    NFA b = build_literal('b');
-    NFA c = build_literal('c');
-    NFA b_or_c = alternation(b, c);
-    NFA pattern = concatenate(a_star, b_or_c);
+    const NFA a = build_literal('a');
+    const NFA a_star = repetition(a);
+    const NFA b = build_literal('b');
+    const NFA c = build_literal('c');
+    const NFA b_or_c = alternation(b, c);
+    const NFA pattern = concatenate(a_star, b_or_c);
 
     EXPECT_TRUE(execute_nfa(pattern, "b"));
     EXPECT_TRUE(execute_nfa(pattern, "c"));
@@ -263,13 +260,13 @@ TEST(NFATest, ComplexRepetition) {
 
 TEST(NFATest, GroupCapture) {
     // Regex: (a|b)
-    NFA a = build_literal('a');
-    NFA b = build_literal('b');
-    NFA group_start = begin_group(1);
-    NFA group_end = end_group(1);
+    const NFA a = build_literal('a');
+    const NFA b = build_literal('b');
+    const NFA group_start = begin_group(1);
+    const NFA group_end = end_group(1);
 
-    NFA alt = alternation(a, b);
-    NFA group = concatenate(group_start, concatenate(alt, group_end));
+    const NFA alt = alternation(a, b);
+    const NFA group = concatenate(group_start, concatenate(alt, group_end));
 
     group.accept->is_accept = true;
 
@@ -280,7 +277,7 @@ TEST(NFATest, GroupCapture) {
 
 TEST(NFATest, EmptyString) {
     // Regex: ""
-    NFA empty_nfa = build_literal('\0');
+    const NFA empty_nfa = build_literal('\0');
     empty_nfa.accept->is_accept = true;
 
     EXPECT_TRUE(execute_nfa(empty_nfa, ""));
