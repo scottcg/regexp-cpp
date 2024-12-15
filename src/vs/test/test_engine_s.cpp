@@ -153,6 +153,65 @@ TEST(NFATest, Repetition) {
     EXPECT_FALSE(execute_nfa(a_star, "b"));
 }
 
+TEST(NFATest, ComplexConcatenation) {
+    // Regex: "abc"
+    NFA a = build_literal('a');
+    NFA b = build_literal('b');
+    NFA c = build_literal('c');
+    NFA abc = concatenate(concatenate(a, b), c);
+
+    EXPECT_TRUE(execute_nfa(abc, "abc"));
+    EXPECT_FALSE(execute_nfa(abc, "ab"));
+    EXPECT_FALSE(execute_nfa(abc, "abcd"));
+    EXPECT_FALSE(execute_nfa(abc, ""));
+}
+
+TEST(NFATest, NestedAlternation) {
+    // Regex: "a|(b|c)"
+    NFA a = build_literal('a');
+    NFA b = build_literal('b');
+    NFA c = build_literal('c');
+    NFA b_or_c = alternation(b, c);
+    NFA a_or_b_or_c = alternation(a, b_or_c);
+
+    EXPECT_TRUE(execute_nfa(a_or_b_or_c, "a"));
+    EXPECT_TRUE(execute_nfa(a_or_b_or_c, "b"));
+    EXPECT_TRUE(execute_nfa(a_or_b_or_c, "c"));
+    EXPECT_FALSE(execute_nfa(a_or_b_or_c, "d"));
+    EXPECT_FALSE(execute_nfa(a_or_b_or_c, ""));
+}
+
+TEST(NFATest, ComplexRepetition) {
+    // Regex: "a*(b|c)"
+    NFA a = build_literal('a');
+    NFA a_star = repetition(a);
+    NFA b = build_literal('b');
+    NFA c = build_literal('c');
+    NFA b_or_c = alternation(b, c);
+    NFA pattern = concatenate(a_star, b_or_c);
+
+    EXPECT_TRUE(execute_nfa(pattern, "b"));
+    EXPECT_TRUE(execute_nfa(pattern, "c"));
+    EXPECT_TRUE(execute_nfa(pattern, "ab"));
+    EXPECT_TRUE(execute_nfa(pattern, "aac"));
+    EXPECT_TRUE(execute_nfa(pattern, "aaaaab"));
+    EXPECT_FALSE(execute_nfa(pattern, "d"));
+    EXPECT_FALSE(execute_nfa(pattern, "a"));
+    EXPECT_FALSE(execute_nfa(pattern, "aabd"));
+}
+
+
+TEST(NFATest, EmptyString) {
+    // Regex: ""
+    NFA empty_nfa = build_literal('\0');
+    empty_nfa.accept->is_accept = true;
+
+    EXPECT_TRUE(execute_nfa(empty_nfa, ""));
+    EXPECT_FALSE(execute_nfa(empty_nfa, "a"));
+}
+
+
+
 int main(int argc, char **argv) {
     ::testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();
