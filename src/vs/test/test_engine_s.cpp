@@ -122,6 +122,7 @@ bool execute_nfa(const NFA& nfa, const std::string& input) {
 // Google Test cases
 TEST(NFATest, LiteralMatch) {
     NFA nfa = build_literal('a');
+
     EXPECT_TRUE(execute_nfa(nfa, "a"));
     EXPECT_FALSE(execute_nfa(nfa, "b"));
 }
@@ -130,6 +131,7 @@ TEST(NFATest, Concatenation) {
     NFA a = build_literal('a');
     NFA b = build_literal('b');
     NFA ab = concatenate(a, b);
+
     EXPECT_TRUE(execute_nfa(ab, "ab"));
     EXPECT_FALSE(execute_nfa(ab, "a"));
     EXPECT_FALSE(execute_nfa(ab, "b"));
@@ -139,6 +141,7 @@ TEST(NFATest, Alternation) {
     NFA a = build_literal('a');
     NFA b = build_literal('b');
     NFA a_or_b = alternation(a, b);
+
     EXPECT_TRUE(execute_nfa(a_or_b, "a"));
     EXPECT_TRUE(execute_nfa(a_or_b, "b"));
     EXPECT_FALSE(execute_nfa(a_or_b, "c"));
@@ -147,6 +150,7 @@ TEST(NFATest, Alternation) {
 TEST(NFATest, Repetition) {
     NFA a = build_literal('a');
     NFA a_star = repetition(a);
+
     EXPECT_TRUE(execute_nfa(a_star, ""));
     EXPECT_TRUE(execute_nfa(a_star, "a"));
     EXPECT_TRUE(execute_nfa(a_star, "aaa"));
@@ -200,7 +204,6 @@ TEST(NFATest, ComplexRepetition) {
     EXPECT_FALSE(execute_nfa(pattern, "aabd"));
 }
 
-
 TEST(NFATest, EmptyString) {
     // Regex: ""
     NFA empty_nfa = build_literal('\0');
@@ -209,8 +212,6 @@ TEST(NFATest, EmptyString) {
     EXPECT_TRUE(execute_nfa(empty_nfa, ""));
     EXPECT_FALSE(execute_nfa(empty_nfa, "a"));
 }
-
-
 
 int main(int argc, char **argv) {
     ::testing::InitGoogleTest(&argc, argv);
