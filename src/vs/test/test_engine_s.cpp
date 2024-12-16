@@ -27,27 +27,6 @@ struct State {
     }
 };
 
-TEST(StateTest, CloneMethod) {
-    // Create an original state
-    State original;
-    original.id = 1;
-    original.is_accept = true;
-    original.group_id = 2;
-    original.transitions = {{'a', std::make_shared<State>(State{2, false, -1, {}, NORMAL})}};
-    original.type = BEGIN_GROUP;
-
-    // Clone the state
-    std::shared_ptr<State> cloned = original.clone();
-
-    // Verify that the cloned state has the same properties as the original
-    EXPECT_EQ(cloned->id, original.id);
-    EXPECT_EQ(cloned->is_accept, original.is_accept);
-    EXPECT_EQ(cloned->group_id, original.group_id);
-    EXPECT_EQ(cloned->transitions.size(), original.transitions.size());
-    EXPECT_EQ(cloned->transitions[0].first, original.transitions[0].first);
-    EXPECT_EQ(cloned->transitions[0].second->id, original.transitions[0].second->id);
-    EXPECT_EQ(cloned->type, original.type);
-}
 
 struct NFA {
     std::shared_ptr<State> start;
@@ -261,6 +240,29 @@ void visualize_nfa_dot(const NFA& nfa, std::ostream& out) {
 int main(int argc, char **argv) {
     ::testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();
+}
+
+
+TEST(StateTest, CloneMethod) {
+    // Create an original state
+    State original;
+    original.id = 1;
+    original.is_accept = true;
+    original.group_id = 2;
+    original.transitions = {{'a', std::make_shared<State>(State{2, false, -1, {}, NORMAL})}};
+    original.type = BEGIN_GROUP;
+
+    // Clone the state
+    std::shared_ptr<State> cloned = original.clone();
+
+    // Verify that the cloned state has the same properties as the original
+    EXPECT_EQ(cloned->id, original.id);
+    EXPECT_EQ(cloned->is_accept, original.is_accept);
+    EXPECT_EQ(cloned->group_id, original.group_id);
+    EXPECT_EQ(cloned->transitions.size(), original.transitions.size());
+    EXPECT_EQ(cloned->transitions[0].first, original.transitions[0].first);
+    EXPECT_EQ(cloned->transitions[0].second->id, original.transitions[0].second->id);
+    EXPECT_EQ(cloned->type, original.type);
 }
 
 
