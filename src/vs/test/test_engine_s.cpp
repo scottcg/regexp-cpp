@@ -14,7 +14,7 @@ enum StateType {
 };
 
 struct State {
-    int id;
+    int id{};
     bool is_accept = false;
     int group_id = -1; // Group ID for BEGIN_GROUP and END_GROUP
     std::vector<std::pair<char, std::shared_ptr<State>>> transitions;
@@ -26,6 +26,28 @@ struct State {
         return new_state;
     }
 };
+
+TEST(StateTest, CloneMethod) {
+    // Create an original state
+    State original;
+    original.id = 1;
+    original.is_accept = true;
+    original.group_id = 2;
+    original.transitions = {{'a', std::make_shared<State>(State{2, false, -1, {}, NORMAL})}};
+    original.type = BEGIN_GROUP;
+
+    // Clone the state
+    std::shared_ptr<State> cloned = original.clone();
+
+    // Verify that the cloned state has the same properties as the original
+    EXPECT_EQ(cloned->id, original.id);
+    EXPECT_EQ(cloned->is_accept, original.is_accept);
+    EXPECT_EQ(cloned->group_id, original.group_id);
+    EXPECT_EQ(cloned->transitions.size(), original.transitions.size());
+    EXPECT_EQ(cloned->transitions[0].first, original.transitions[0].first);
+    EXPECT_EQ(cloned->transitions[0].second->id, original.transitions[0].second->id);
+    EXPECT_EQ(cloned->type, original.type);
+}
 
 struct NFA {
     std::shared_ptr<State> start;
@@ -166,31 +188,6 @@ public:
         return {start, accept};
     }
 
-    static NFA repetition_range(const NFA& nfa, int min, int max) {
-        if (min < 0 || (max != -1 && min > max)) {
-            throw std::invalid_argument("Invalid range for repetition");
-        }
-
-        // Create the initial part with min repetitions
-        NFA result = nfa;
-        for (int i = 1; i < min; ++i) {
-            result = concatenate(result, nfa);
-        }
-
-        // Create the optional part for max - min repetitions
-        auto current = result.accept;
-        for (int i = min; i < max; ++i) {
-            auto next_start = create_state();
-            auto next_accept = create_state(true);
-            add_transition(current, next_start, '\0');
-            add_transition(next_start, nfa.start, '\0');
-            add_transition(nfa.accept, next_accept, '\0');
-            current = next_accept;
-        }
-
-        return {result.start, current};
-    }
-
     static NFA begin_group(const int group_id) {
         const auto start = create_state();
         start->type = BEGIN_GROUP;
@@ -266,78 +263,9 @@ int main(int argc, char **argv) {
     return RUN_ALL_TESTS();
 }
 
-TEST(NFATest, RepetitionRange) {
-    const NFA a = NFABuilder::build_literal('a');
-
-    const NFA a_2_3 = NFABuilder::repetition_range(a, 2, 3);
-
-    // Test for a{2,3}
-    /* Expected NFA:
-        digraph NFA {
-          rankdir=LR;
-          node [shape=circle];
-
-          0 -> 1 [label="a"];
-          1 -> 2 [label="a"];
-          2 -> 3 [label="ε"];
-          2 -> 4 [label="a"];
-          4 -> 3 [label="ε"];
-
-          3 [shape=doublecircle];
-        }
-     */
-
-    EXPECT_TRUE(execute_nfa(a_2_3, "aa"));
-    EXPECT_TRUE(execute_nfa(a_2_3, "aaa"));
-    EXPECT_FALSE(execute_nfa(a_2_3, "a"));
-    EXPECT_FALSE(execute_nfa(a_2_3, "aaaa"));
-    EXPECT_FALSE(execute_nfa(a_2_3, "b"));
-
-    // Test for a{2,}
-    /*
-    digraph NFA {
-    rankdir=LR;
-    node [shape=circle];
-
-    0 -> 1 [label="a"];
-    1 -> 2 [label="a"];
-    2 -> 3 [label="ε"];
-    2 -> 4 [label="a"];
-    4 -> 4 [label="a"];
-    4 -> 3 [label="ε"];
-
-    3 [shape=doublecircle];
-    }
-    */
-    const NFA a_2_inf = NFABuilder::repetition_range(a, 2, -1);
-    EXPECT_TRUE(execute_nfa(a_2_inf, "aa"));
-    EXPECT_TRUE(execute_nfa(a_2_inf, "aaa"));
-    EXPECT_TRUE(execute_nfa(a_2_inf, "aaaa"));
-    EXPECT_FALSE(execute_nfa(a_2_inf, "a"));
-    EXPECT_FALSE(execute_nfa(a_2_inf, "b"));
-
-    // Test for a{3}
-    /* should look like:
-     digraph NFA {
-        rankdir=LR;
-        node [shape=circle];
-
-        0 -> 1 [label="a"];
-        1 -> 2 [label="a"];
-        2 -> 3 [label="a"];
-
-        3 [shape=doublecircle];
-    }
-    */
-    const NFA a_3 = NFABuilder::repetition_range(a, 3, 3);
-    EXPECT_TRUE(execute_nfa(a_3, "aaa"));
-    EXPECT_FALSE(execute_nfa(a_3, "aa"));
-    EXPECT_FALSE(execute_nfa(a_3, "aaaa"));
-    EXPECT_FALSE(execute_nfa(a_3, "a"));
-    EXPECT_FALSE(execute_nfa(a_3, "b"));
-}
 
 TEST(NFATest, LiteralMatch) {
+    // "a"
     const NFA nfa = NFABuilder::build_literal('a');
 
     EXPECT_TRUE(execute_nfa(nfa, "a"));
@@ -345,6 +273,7 @@ TEST(NFATest, LiteralMatch) {
 }
 
 TEST(NFATest, Concatenation) {
+    // "ab"
     const NFA a = NFABuilder::build_literal('a');
     const NFA b = NFABuilder::build_literal('b');
     const NFA ab = NFABuilder::concatenate(a, b);
@@ -355,6 +284,7 @@ TEST(NFATest, Concatenation) {
 }
 
 TEST(NFATest, Alternation) {
+    // "a|b"
     const NFA a = NFABuilder::build_literal('a');
     const NFA b = NFABuilder::build_literal('b');
     const NFA a_or_b = NFABuilder::alternation(a, b);
@@ -367,6 +297,7 @@ TEST(NFATest, Alternation) {
 }
 
 TEST(NFATest, Repetition) {
+    // "a*"
     const NFA a = NFABuilder::build_literal('a');
     const NFA a_star = NFABuilder::repetition(a);
 
@@ -377,7 +308,7 @@ TEST(NFATest, Repetition) {
 }
 
 TEST(NFATest, PatternAPlusBCStar) {
-    // Regex: a+bc*
+    // Regex: "a+bc*"
     const NFA a = NFABuilder::build_literal('a');
     const NFA a_plus = NFABuilder::repetition(a, true); // One or more 'a'
     const NFA b = NFABuilder::build_literal('b');
@@ -459,7 +390,7 @@ TEST(NFATest, ComplexRepetition) {
 }
 
 TEST(NFATest, GroupCapture) {
-    // Regex: (a|b)
+    // Regex: "(a|b)"
     const NFA a = NFABuilder::build_literal('a');
     const NFA b = NFABuilder::build_literal('b');
     const NFA group_start = NFABuilder::begin_group(1);
@@ -478,7 +409,7 @@ TEST(NFATest, GroupCapture) {
 }
 
 TEST(NFATest, GroupCaptureAdvanced) {
-    // Regex: (a|b)c*
+    // Regex: ""(a|b)c*"
     const NFA a = NFABuilder::build_literal('a');
     const NFA b = NFABuilder::build_literal('b');
     const NFA c = NFABuilder::build_literal('c');
@@ -521,7 +452,7 @@ TEST(NFATest, GroupCaptureAdvanced) {
 }
 
 TEST(NFATest, NestedGroupCapture) {
-    // Regex: (a(b))c
+    // Regex: ""(a(b))c"
     const NFA a = NFABuilder::build_literal('a');
     const NFA b = NFABuilder::build_literal('b');
     const NFA c = NFABuilder::build_literal('c');
@@ -553,7 +484,7 @@ TEST(NFATest, NestedGroupCapture) {
 }
 
 TEST(NFATest, GroupCaptureWithRepetition) {
-    // Regex: (a|b)+
+    // Regex: ""(a|b)+"
     const NFA a = NFABuilder::build_literal('a');
     const NFA b = NFABuilder::build_literal('b');
     const NFA group_start = NFABuilder::begin_group(1);
