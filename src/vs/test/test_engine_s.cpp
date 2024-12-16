@@ -166,6 +166,31 @@ public:
         return {start, accept};
     }
 
+    static NFA repetition_range(const NFA& nfa, int min, int max) {
+        if (min < 0 || (max != -1 && min > max)) {
+            throw std::invalid_argument("Invalid range for repetition");
+        }
+
+        // Create the initial part with min repetitions
+        NFA result = nfa;
+        for (int i = 1; i < min; ++i) {
+            result = concatenate(result, nfa);
+        }
+
+        // Create the optional part for max - min repetitions
+        auto current = result.accept;
+        for (int i = min; i < max; ++i) {
+            auto next_start = create_state();
+            auto next_accept = create_state(true);
+            add_transition(current, next_start, '\0');
+            add_transition(next_start, nfa.start, '\0');
+            add_transition(nfa.accept, next_accept, '\0');
+            current = next_accept;
+        }
+
+        return {result.start, current};
+    }
+
     static NFA begin_group(const int group_id) {
         const auto start = create_state();
         start->type = BEGIN_GROUP;
@@ -202,33 +227,6 @@ private:
 // Define the static member
 int NFABuilder::state_counter = 0;
 
-
-
-void visualize_nfa(const NFA& nfa, std::ostream& out) {
-    std::queue<std::shared_ptr<State>> to_process;
-    std::unordered_set<int> visited;
-
-    to_process.push(nfa.start);
-    visited.insert(nfa.start->id);
-
-    while (!to_process.empty()) {
-        auto current = to_process.front();
-        to_process.pop();
-
-        out << "State " << current->id;
-        if (current->is_accept) {
-            out << " (accept)";
-        }
-        out << ":\n";
-
-        for (const auto& [symbol, next] : current->transitions) {
-            out << "  --" << (symbol == '\0' ? "ε" : std::string(1, symbol)) << "--> State " << next->id << "\n";
-            if (visited.insert(next->id).second) {
-                to_process.push(next);
-            }
-        }
-    }
-}
 
 void visualize_nfa_dot(const NFA& nfa, std::ostream& out) {
     out << "https://dreampuf.github.io/GraphvizOnline/?engine=do\n";
@@ -268,6 +266,77 @@ int main(int argc, char **argv) {
     return RUN_ALL_TESTS();
 }
 
+TEST(NFATest, RepetitionRange) {
+    const NFA a = NFABuilder::build_literal('a');
+
+    const NFA a_2_3 = NFABuilder::repetition_range(a, 2, 3);
+
+    // Test for a{2,3}
+    /* Expected NFA:
+        digraph NFA {
+          rankdir=LR;
+          node [shape=circle];
+
+          0 -> 1 [label="a"];
+          1 -> 2 [label="a"];
+          2 -> 3 [label="ε"];
+          2 -> 4 [label="a"];
+          4 -> 3 [label="ε"];
+
+          3 [shape=doublecircle];
+        }
+     */
+
+    EXPECT_TRUE(execute_nfa(a_2_3, "aa"));
+    EXPECT_TRUE(execute_nfa(a_2_3, "aaa"));
+    EXPECT_FALSE(execute_nfa(a_2_3, "a"));
+    EXPECT_FALSE(execute_nfa(a_2_3, "aaaa"));
+    EXPECT_FALSE(execute_nfa(a_2_3, "b"));
+
+    // Test for a{2,}
+    /*
+    digraph NFA {
+    rankdir=LR;
+    node [shape=circle];
+
+    0 -> 1 [label="a"];
+    1 -> 2 [label="a"];
+    2 -> 3 [label="ε"];
+    2 -> 4 [label="a"];
+    4 -> 4 [label="a"];
+    4 -> 3 [label="ε"];
+
+    3 [shape=doublecircle];
+    }
+    */
+    const NFA a_2_inf = NFABuilder::repetition_range(a, 2, -1);
+    EXPECT_TRUE(execute_nfa(a_2_inf, "aa"));
+    EXPECT_TRUE(execute_nfa(a_2_inf, "aaa"));
+    EXPECT_TRUE(execute_nfa(a_2_inf, "aaaa"));
+    EXPECT_FALSE(execute_nfa(a_2_inf, "a"));
+    EXPECT_FALSE(execute_nfa(a_2_inf, "b"));
+
+    // Test for a{3}
+    /* should look like:
+     digraph NFA {
+        rankdir=LR;
+        node [shape=circle];
+
+        0 -> 1 [label="a"];
+        1 -> 2 [label="a"];
+        2 -> 3 [label="a"];
+
+        3 [shape=doublecircle];
+    }
+    */
+    const NFA a_3 = NFABuilder::repetition_range(a, 3, 3);
+    EXPECT_TRUE(execute_nfa(a_3, "aaa"));
+    EXPECT_FALSE(execute_nfa(a_3, "aa"));
+    EXPECT_FALSE(execute_nfa(a_3, "aaaa"));
+    EXPECT_FALSE(execute_nfa(a_3, "a"));
+    EXPECT_FALSE(execute_nfa(a_3, "b"));
+}
+
 TEST(NFATest, LiteralMatch) {
     const NFA nfa = NFABuilder::build_literal('a');
 
@@ -289,6 +358,8 @@ TEST(NFATest, Alternation) {
     const NFA a = NFABuilder::build_literal('a');
     const NFA b = NFABuilder::build_literal('b');
     const NFA a_or_b = NFABuilder::alternation(a, b);
+
+    visualize_nfa_dot(a_or_b, std::cout);
 
     EXPECT_TRUE(execute_nfa(a_or_b, "a"));
     EXPECT_TRUE(execute_nfa(a_or_b, "b"));
@@ -315,6 +386,7 @@ TEST(NFATest, PatternAPlusBCStar) {
     const NFA bc_star = NFABuilder::concatenate(b, c_star);
     const NFA pattern = NFABuilder::concatenate(a_plus, bc_star);
 
+    visualize_nfa_dot(pattern, std::cout);
     // Expected Behavior:
     // Input: "a", Should fail (needs at least one 'b')
     // Input: "ab", Should pass
@@ -356,7 +428,7 @@ TEST(NFATest, NestedAlternation) {
     const NFA b_or_c = NFABuilder::alternation(b, c);
     const NFA a_or_b_or_c = NFABuilder::alternation(a, b_or_c);
 
-    visualize_nfa(a_or_b_or_c, std::cout);
+    visualize_nfa_dot(a_or_b_or_c, std::cout);
 
     EXPECT_TRUE(execute_nfa(a_or_b_or_c, "a"));
     EXPECT_TRUE(execute_nfa(a_or_b_or_c, "b"));
@@ -397,6 +469,8 @@ TEST(NFATest, GroupCapture) {
     const NFA group = NFABuilder::concatenate(group_start, NFABuilder::concatenate(alt, group_end));
 
     group.accept->is_accept = true;
+
+    visualize_nfa_dot(group, std::cout);
 
     EXPECT_TRUE(execute_nfa(group, "a")); // Should capture group 1: "a"
     EXPECT_TRUE(execute_nfa(group, "b")); // Should capture group 1: "b"
@@ -488,6 +562,8 @@ TEST(NFATest, GroupCaptureWithRepetition) {
     const NFA a_or_b = NFABuilder::alternation(a, b);
     const NFA group = NFABuilder::concatenate(group_start, NFABuilder::concatenate(a_or_b, group_end));
     const NFA repeated_group = NFABuilder::repetition(group, true); // Use one_or_more = true
+
+    visualize_nfa_dot(repeated_group, std::cout);
 
     // Expected Behavior:
     // Input: "a", Captures group 1: "a"
