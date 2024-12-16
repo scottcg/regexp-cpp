@@ -26,93 +26,6 @@ struct NFA {
     std::shared_ptr<State> accept;
 };
 
-// Global state counter for unique IDs
-int state_counter = 0;
-
-// Utility to create a new state
-std::shared_ptr<State> create_state(const bool is_accept = false) {
-    return std::make_shared<State>(State{state_counter++, is_accept, -1, {}});
-}
-
-// Helper: Add a transition between two states
-void add_transition(const std::shared_ptr<State>& from, const std::shared_ptr<State>& to, char symbol) {
-    from->transitions.emplace_back(symbol, to);
-}
-
-// Build NFA for a single literal character
-NFA build_literal(const char c) {
-    const auto start = create_state();
-    const auto accept = create_state(true);
-    add_transition(start, accept, c);
-    return {start, accept};
-}
-
-// Concatenate two NFAs
-NFA concatenate(const NFA& first, const NFA& second) {
-    add_transition(first.accept, second.start, '\0'); // ε-transition
-    first.accept->is_accept = false;
-    return {first.start, second.accept};
-}
-
-// Alternation: a|b
-NFA alternation(const NFA& first, const NFA& second) {
-    const auto start = create_state();
-    const auto accept = create_state(true);
-
-    add_transition(start, first.start, '\0'); // ε-transition
-    add_transition(start, second.start, '\0'); // ε-transition
-
-    add_transition(first.accept, accept, '\0');
-    add_transition(second.accept, accept, '\0');
-
-    first.accept->is_accept = false;
-    second.accept->is_accept = false;
-
-    return {start, accept};
-}
-
-// Repetition: a*
-NFA repetition(const NFA& nfa, bool one_or_more = false) {
-    const auto start = create_state();
-    const auto accept = create_state(true);
-
-    // If one_or_more is true, require at least one transition
-    if (one_or_more) {
-        add_transition(start, nfa.start, '\0'); // ε-transition to NFA
-        add_transition(nfa.accept, nfa.start, '\0'); // Loop back to start
-        add_transition(nfa.accept, accept, '\0');    // Transition to accept
-    } else {
-        // Zero or more (standard *)
-        add_transition(start, nfa.start, '\0'); // ε-transition to NFA
-        add_transition(start, accept, '\0');    // ε-transition to accept
-        add_transition(nfa.accept, nfa.start, '\0'); // Loop back to start
-        add_transition(nfa.accept, accept, '\0');    // Transition to accept
-    }
-
-    nfa.accept->is_accept = false;
-    return {start, accept};
-}
-
-NFA begin_group(const int group_id) {
-    const auto start = create_state();
-    start->type = BEGIN_GROUP;
-    start->group_id = group_id;
-
-    const auto accept = create_state();
-    add_transition(start, accept, '\0'); // ε-transition
-    return {start, accept};
-}
-
-NFA end_group(const int group_id) {
-    const auto start = create_state();
-    start->type = END_GROUP;
-    start->group_id = group_id;
-
-    const auto accept = create_state();
-    add_transition(start, accept, '\0'); // ε-transition
-    return {start, accept};
-}
-
 // Compute the epsilon closure of a set of states
 void epsilon_closure(std::unordered_set<std::shared_ptr<State>>& states) {
     std::queue<std::shared_ptr<State>> to_process;
@@ -195,18 +108,169 @@ bool execute_nfa(const NFA& nfa, const std::string& input) {
     return false; // No match
 }
 
-// Google Test cases
+class NFABuilder {
+public:
+    static NFA build_literal(const char c) {
+        const auto start = create_state();
+        const auto accept = create_state(true);
+        add_transition(start, accept, c);
+        return {start, accept};
+    }
+
+    static NFA concatenate(const NFA& first, const NFA& second) {
+        add_transition(first.accept, second.start, '\0'); // ε-transition
+        first.accept->is_accept = false;
+        return {first.start, second.accept};
+    }
+
+    static NFA alternation(const NFA& first, const NFA& second) {
+        const auto start = create_state();
+        const auto accept = create_state(true);
+
+        add_transition(start, first.start, '\0'); // ε-transition
+        add_transition(start, second.start, '\0'); // ε-transition
+
+        add_transition(first.accept, accept, '\0');
+        add_transition(second.accept, accept, '\0');
+
+        first.accept->is_accept = false;
+        second.accept->is_accept = false;
+
+        return {start, accept};
+    }
+
+    static NFA repetition(const NFA& nfa, bool one_or_more = false) {
+        const auto start = create_state();
+        const auto accept = create_state(true);
+
+        // If one_or_more is true, require at least one transition
+        if (one_or_more) {
+            add_transition(start, nfa.start, '\0'); // ε-transition to NFA
+            add_transition(nfa.accept, nfa.start, '\0'); // Loop back to start
+            add_transition(nfa.accept, accept, '\0');    // Transition to accept
+        } else {
+            // Zero or more (standard *)
+            add_transition(start, nfa.start, '\0'); // ε-transition to NFA
+            add_transition(start, accept, '\0');    // ε-transition to accept
+            add_transition(nfa.accept, nfa.start, '\0'); // Loop back to start
+            add_transition(nfa.accept, accept, '\0');    // Transition to accept
+        }
+
+        nfa.accept->is_accept = false;
+        return {start, accept};
+    }
+
+    static NFA begin_group(const int group_id) {
+        const auto start = create_state();
+        start->type = BEGIN_GROUP;
+        start->group_id = group_id;
+
+        const auto accept = create_state();
+        add_transition(start, accept, '\0'); // ε-transition
+        return {start, accept};
+    }
+
+    static NFA end_group(const int group_id) {
+        const auto start = create_state();
+        start->type = END_GROUP;
+        start->group_id = group_id;
+
+        const auto accept = create_state();
+        add_transition(start, accept, '\0'); // ε-transition
+        return {start, accept};
+    }
+
+private:
+    static std::shared_ptr<State> create_state(const bool is_accept = false) {
+        return std::make_shared<State>(State{state_counter++, is_accept, -1, {}});
+    }
+
+    static void add_transition(const std::shared_ptr<State>& from, const std::shared_ptr<State>& to, char symbol) {
+        from->transitions.emplace_back(symbol, to);
+        //std::cout << "Transition added from state " << from->id << " to state " << to->id << " with symbol '" << symbol << "'\n";
+    }
+
+    static int state_counter;
+};
+
+// Define the static member
+int NFABuilder::state_counter = 0;
+
+void visualize_nfa(const NFA& nfa, std::ostream& out) {
+    std::queue<std::shared_ptr<State>> to_process;
+    std::unordered_set<int> visited;
+
+    to_process.push(nfa.start);
+    visited.insert(nfa.start->id);
+
+    while (!to_process.empty()) {
+        auto current = to_process.front();
+        to_process.pop();
+
+        out << "State " << current->id;
+        if (current->is_accept) {
+            out << " (accept)";
+        }
+        out << ":\n";
+
+        for (const auto& [symbol, next] : current->transitions) {
+            out << "  --" << (symbol == '\0' ? "ε" : std::string(1, symbol)) << "--> State " << next->id << "\n";
+            if (visited.insert(next->id).second) {
+                to_process.push(next);
+            }
+        }
+    }
+}
+
+void visualize_nfa_dot(const NFA& nfa, std::ostream& out) {
+    out << "https://dreampuf.github.io/GraphvizOnline/?engine=do\n";
+    out << "\n";
+    out << "digraph NFA {\n";
+    out << "  rankdir=LR;\n";
+    out << "  node [shape=circle];\n";
+
+    std::queue<std::shared_ptr<State>> to_process;
+    std::unordered_set<int> visited;
+
+    to_process.push(nfa.start);
+    visited.insert(nfa.start->id);
+
+    while (!to_process.empty()) {
+        auto current = to_process.front();
+        to_process.pop();
+
+        if (current->is_accept) {
+            out << "  " << current->id << " [shape=doublecircle];\n";
+        }
+
+        for (const auto& [symbol, next] : current->transitions) {
+            out << "  " << current->id << " -> " << next->id << " [label=\""
+                << (symbol == '\0' ? "ε" : std::string(1, symbol)) << "\"];\n";
+            if (visited.insert(next->id).second) {
+                to_process.push(next);
+            }
+        }
+    }
+
+    out << "}\n";
+}
+
+int main(int argc, char **argv) {
+    ::testing::InitGoogleTest(&argc, argv);
+    return RUN_ALL_TESTS();
+}
+
 TEST(NFATest, LiteralMatch) {
-    const NFA nfa = build_literal('a');
+    const NFA nfa = NFABuilder::build_literal('a');
 
     EXPECT_TRUE(execute_nfa(nfa, "a"));
     EXPECT_FALSE(execute_nfa(nfa, "b"));
 }
 
 TEST(NFATest, Concatenation) {
-    const NFA a = build_literal('a');
-    const NFA b = build_literal('b');
-    const NFA ab = concatenate(a, b);
+    const NFA a = NFABuilder::build_literal('a');
+    const NFA b = NFABuilder::build_literal('b');
+    const NFA ab = NFABuilder::concatenate(a, b);
 
     EXPECT_TRUE(execute_nfa(ab, "ab"));
     EXPECT_FALSE(execute_nfa(ab, "a"));
@@ -214,9 +278,9 @@ TEST(NFATest, Concatenation) {
 }
 
 TEST(NFATest, Alternation) {
-    const NFA a = build_literal('a');
-    const NFA b = build_literal('b');
-    const NFA a_or_b = alternation(a, b);
+    const NFA a = NFABuilder::build_literal('a');
+    const NFA b = NFABuilder::build_literal('b');
+    const NFA a_or_b = NFABuilder::alternation(a, b);
 
     EXPECT_TRUE(execute_nfa(a_or_b, "a"));
     EXPECT_TRUE(execute_nfa(a_or_b, "b"));
@@ -224,8 +288,8 @@ TEST(NFATest, Alternation) {
 }
 
 TEST(NFATest, Repetition) {
-    const NFA a = build_literal('a');
-    const NFA a_star = repetition(a);
+    const NFA a = NFABuilder::build_literal('a');
+    const NFA a_star = NFABuilder::repetition(a);
 
     EXPECT_TRUE(execute_nfa(a_star, ""));
     EXPECT_TRUE(execute_nfa(a_star, "a"));
@@ -233,12 +297,42 @@ TEST(NFATest, Repetition) {
     EXPECT_FALSE(execute_nfa(a_star, "b"));
 }
 
+TEST(NFATest, PatternAPlusBCStar) {
+    // Regex: a+bc*
+    const NFA a = NFABuilder::build_literal('a');
+    const NFA a_plus = NFABuilder::repetition(a, true); // One or more 'a'
+    const NFA b = NFABuilder::build_literal('b');
+    const NFA c = NFABuilder::build_literal('c');
+    const NFA c_star = NFABuilder::repetition(c); // Zero or more 'c'
+    const NFA bc_star = NFABuilder::concatenate(b, c_star);
+    const NFA pattern = NFABuilder::concatenate(a_plus, bc_star);
+
+    // Expected Behavior:
+    // Input: "a", Should fail (needs at least one 'b')
+    // Input: "ab", Should pass
+    // Input: "abc", Should pass
+    // Input: "aab", Should pass
+    // Input: "aabc", Should pass
+    // Input: "aabcc", Should pass
+    // Input: "b", Should fail (no 'a')
+    // Input: "ac", Should fail (needs 'b' after 'a')
+
+    EXPECT_FALSE(execute_nfa(pattern, "a"));
+    EXPECT_TRUE(execute_nfa(pattern, "ab"));
+    EXPECT_TRUE(execute_nfa(pattern, "abc"));
+    EXPECT_TRUE(execute_nfa(pattern, "aab"));
+    EXPECT_TRUE(execute_nfa(pattern, "aabc"));
+    EXPECT_TRUE(execute_nfa(pattern, "aabcc"));
+    EXPECT_FALSE(execute_nfa(pattern, "b"));
+    EXPECT_FALSE(execute_nfa(pattern, "ac"));
+}
+
 TEST(NFATest, ComplexConcatenation) {
     // Regex: "abc"
-    const NFA a = build_literal('a');
-    const NFA b = build_literal('b');
-    const NFA c = build_literal('c');
-    const NFA abc = concatenate(concatenate(a, b), c);
+    const NFA a = NFABuilder::build_literal('a');
+    const NFA b = NFABuilder::build_literal('b');
+    const NFA c = NFABuilder::build_literal('c');
+    const NFA abc = NFABuilder::concatenate(NFABuilder::concatenate(a, b), c);
 
     EXPECT_TRUE(execute_nfa(abc, "abc"));
     EXPECT_FALSE(execute_nfa(abc, "ab"));
@@ -248,11 +342,13 @@ TEST(NFATest, ComplexConcatenation) {
 
 TEST(NFATest, NestedAlternation) {
     // Regex: "a|(b|c)"
-    const NFA a = build_literal('a');
-    const NFA b = build_literal('b');
-    const NFA c = build_literal('c');
-    const NFA b_or_c = alternation(b, c);
-    const NFA a_or_b_or_c = alternation(a, b_or_c);
+    const NFA a = NFABuilder::build_literal('a');
+    const NFA b = NFABuilder::build_literal('b');
+    const NFA c = NFABuilder::build_literal('c');
+    const NFA b_or_c = NFABuilder::alternation(b, c);
+    const NFA a_or_b_or_c = NFABuilder::alternation(a, b_or_c);
+
+    visualize_nfa(a_or_b_or_c, std::cout);
 
     EXPECT_TRUE(execute_nfa(a_or_b_or_c, "a"));
     EXPECT_TRUE(execute_nfa(a_or_b_or_c, "b"));
@@ -263,12 +359,14 @@ TEST(NFATest, NestedAlternation) {
 
 TEST(NFATest, ComplexRepetition) {
     // Regex: "a*(b|c)"
-    const NFA a = build_literal('a');
-    const NFA a_star = repetition(a);
-    const NFA b = build_literal('b');
-    const NFA c = build_literal('c');
-    const NFA b_or_c = alternation(b, c);
-    const NFA pattern = concatenate(a_star, b_or_c);
+    const NFA a = NFABuilder::build_literal('a');
+    const NFA a_star = NFABuilder::repetition(a);
+    const NFA b = NFABuilder::build_literal('b');
+    const NFA c = NFABuilder::build_literal('c');
+    const NFA b_or_c = NFABuilder::alternation(b, c);
+    const NFA pattern = NFABuilder::concatenate(a_star, b_or_c);
+
+    visualize_nfa_dot(pattern, std::cout);
 
     EXPECT_TRUE(execute_nfa(pattern, "b"));
     EXPECT_TRUE(execute_nfa(pattern, "c"));
@@ -282,13 +380,13 @@ TEST(NFATest, ComplexRepetition) {
 
 TEST(NFATest, GroupCapture) {
     // Regex: (a|b)
-    const NFA a = build_literal('a');
-    const NFA b = build_literal('b');
-    const NFA group_start = begin_group(1);
-    const NFA group_end = end_group(1);
+    const NFA a = NFABuilder::build_literal('a');
+    const NFA b = NFABuilder::build_literal('b');
+    const NFA group_start = NFABuilder::begin_group(1);
+    const NFA group_end = NFABuilder::end_group(1);
 
-    const NFA alt = alternation(a, b);
-    const NFA group = concatenate(group_start, concatenate(alt, group_end));
+    const NFA alt = NFABuilder::alternation(a, b);
+    const NFA group = NFABuilder::concatenate(group_start, NFABuilder::concatenate(alt, group_end));
 
     group.accept->is_accept = true;
 
@@ -299,16 +397,16 @@ TEST(NFATest, GroupCapture) {
 
 TEST(NFATest, GroupCaptureAdvanced) {
     // Regex: (a|b)c*
-    const NFA a = build_literal('a');
-    const NFA b = build_literal('b');
-    const NFA c = build_literal('c');
-    const NFA group_start = begin_group(1);
-    const NFA group_end = end_group(1);
+    const NFA a = NFABuilder::build_literal('a');
+    const NFA b = NFABuilder::build_literal('b');
+    const NFA c = NFABuilder::build_literal('c');
+    const NFA group_start = NFABuilder::begin_group(1);
+    const NFA group_end = NFABuilder::end_group(1);
 
-    const NFA a_or_b = alternation(a, b);
-    const NFA group = concatenate(group_start, concatenate(a_or_b, group_end));
-    const NFA c_star = repetition(c);
-    const NFA pattern = concatenate(group, c_star);
+    const NFA a_or_b = NFABuilder::alternation(a, b);
+    const NFA group = NFABuilder::concatenate(group_start, NFABuilder::concatenate(a_or_b, group_end));
+    const NFA c_star = NFABuilder::repetition(c);
+    const NFA pattern = NFABuilder::concatenate(group, c_star);
 
     // Expected Behavior:
     // Input: "a", Captures group 1: "a"
@@ -342,20 +440,20 @@ TEST(NFATest, GroupCaptureAdvanced) {
 
 TEST(NFATest, NestedGroupCapture) {
     // Regex: (a(b))c
-    const NFA a = build_literal('a');
-    const NFA b = build_literal('b');
-    const NFA c = build_literal('c');
+    const NFA a = NFABuilder::build_literal('a');
+    const NFA b = NFABuilder::build_literal('b');
+    const NFA c = NFABuilder::build_literal('c');
 
-    const NFA group1_start = begin_group(1);
-    const NFA group1_end = end_group(1);
+    const NFA group1_start = NFABuilder::begin_group(1);
+    const NFA group1_end = NFABuilder::end_group(1);
 
-    const NFA group2_start = begin_group(2);
-    const NFA group2_end = end_group(2);
+    const NFA group2_start = NFABuilder::begin_group(2);
+    const NFA group2_end = NFABuilder::end_group(2);
 
     // Build nested groups
-    const NFA inner_group = concatenate(group2_start, concatenate(b, group2_end));
-    const NFA outer_group = concatenate(group1_start, concatenate(a, concatenate(inner_group, group1_end)));
-    const NFA pattern = concatenate(outer_group, c);
+    const NFA inner_group = NFABuilder::concatenate(group2_start, NFABuilder::concatenate(b, group2_end));
+    const NFA outer_group = NFABuilder::concatenate(group1_start, NFABuilder::concatenate(a, NFABuilder::concatenate(inner_group, group1_end)));
+    const NFA pattern = NFABuilder::concatenate(outer_group, c);
 
     // Expected Behavior:
     // Input: "abc", Captures:
@@ -374,14 +472,14 @@ TEST(NFATest, NestedGroupCapture) {
 
 TEST(NFATest, GroupCaptureWithRepetition) {
     // Regex: (a|b)+
-    const NFA a = build_literal('a');
-    const NFA b = build_literal('b');
-    const NFA group_start = begin_group(1);
-    const NFA group_end = end_group(1);
+    const NFA a = NFABuilder::build_literal('a');
+    const NFA b = NFABuilder::build_literal('b');
+    const NFA group_start = NFABuilder::begin_group(1);
+    const NFA group_end = NFABuilder::end_group(1);
 
-    const NFA a_or_b = alternation(a, b);
-    const NFA group = concatenate(group_start, concatenate(a_or_b, group_end));
-    const NFA repeated_group = repetition(group, true); // Use one_or_more = true
+    const NFA a_or_b = NFABuilder::alternation(a, b);
+    const NFA group = NFABuilder::concatenate(group_start, NFABuilder::concatenate(a_or_b, group_end));
+    const NFA repeated_group = NFABuilder::repetition(group, true); // Use one_or_more = true
 
     // Expected Behavior:
     // Input: "a", Captures group 1: "a"
@@ -409,14 +507,9 @@ TEST(NFATest, GroupCaptureWithRepetition) {
 
 TEST(NFATest, EmptyString) {
     // Regex: ""
-    const NFA empty_nfa = build_literal('\0');
+    const NFA empty_nfa = NFABuilder::build_literal('\0');
     empty_nfa.accept->is_accept = true;
 
     EXPECT_TRUE(execute_nfa(empty_nfa, ""));
     EXPECT_FALSE(execute_nfa(empty_nfa, "a"));
-}
-
-int main(int argc, char **argv) {
-    ::testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
 }
