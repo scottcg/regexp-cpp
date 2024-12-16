@@ -19,6 +19,12 @@ struct State {
     int group_id = -1; // Group ID for BEGIN_GROUP and END_GROUP
     std::vector<std::pair<char, std::shared_ptr<State>>> transitions;
     StateType type = NORMAL;
+
+    // add clone method
+    std::shared_ptr<State> clone() const {
+        auto new_state = std::make_shared<State>(State{id, is_accept, group_id, transitions, type});
+        return new_state;
+    }
 };
 
 struct NFA {
@@ -196,6 +202,8 @@ private:
 // Define the static member
 int NFABuilder::state_counter = 0;
 
+
+
 void visualize_nfa(const NFA& nfa, std::ostream& out) {
     std::queue<std::shared_ptr<State>> to_process;
     std::unordered_set<int> visited;
@@ -236,7 +244,7 @@ void visualize_nfa_dot(const NFA& nfa, std::ostream& out) {
     visited.insert(nfa.start->id);
 
     while (!to_process.empty()) {
-        auto current = to_process.front();
+        const auto current = to_process.front();
         to_process.pop();
 
         if (current->is_accept) {
