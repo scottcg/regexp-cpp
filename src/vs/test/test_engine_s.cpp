@@ -14,19 +14,34 @@ enum StateType {
 };
 
 struct State {
-    int id{};
+    static int next_id; // Static counter for unique IDs
+    int id;
     bool is_accept = false;
-    int group_id = -1; // Group ID for BEGIN_GROUP and END_GROUP
+    int group_id = -1;
     std::vector<std::pair<char, std::shared_ptr<State>>> transitions;
     StateType type = NORMAL;
 
-    // add clone method
+    explicit State(bool is_accept = false, int group_id = -1, StateType type = NORMAL)
+        : id(next_id++), is_accept(is_accept), group_id(group_id), type(type) {}
+
+    // Clone method that assigns new unique IDs
     std::shared_ptr<State> clone() const {
-        auto new_state = std::make_shared<State>(State{id, is_accept, group_id, transitions, type});
+        auto new_state = std::make_shared<State>();
+        new_state->is_accept = this->is_accept;
+        new_state->group_id = this->group_id;
+        new_state->type = this->type;
+
+        // Recursively clone transitions
+        for (const auto &[symbol, next] : this->transitions) {
+            new_state->transitions.emplace_back(symbol, next->clone());
+        }
+
         return new_state;
     }
 };
 
+// Initialize static counter
+int State::next_id = 0;
 
 struct NFA {
     std::shared_ptr<State> start;
@@ -189,19 +204,14 @@ public:
 
 private:
     static std::shared_ptr<State> create_state(const bool is_accept = false) {
-        return std::make_shared<State>(State{state_counter++, is_accept, -1, {}});
+        return std::make_shared<State>(State{is_accept, -1, {}});
     }
 
     static void add_transition(const std::shared_ptr<State>& from, const std::shared_ptr<State>& to, char symbol) {
         from->transitions.emplace_back(symbol, to);
         //std::cout << "Transition added from state " << from->id << " to state " << to->id << " with symbol '" << symbol << "'\n";
     }
-
-    static int state_counter;
 };
-
-// Define the static member
-int NFABuilder::state_counter = 0;
 
 
 void visualize_nfa_dot(const NFA& nfa, std::ostream& out) {
@@ -245,26 +255,25 @@ int main(int argc, char **argv) {
 
 TEST(StateTest, CloneMethod) {
     // Create an original state
-    State original;
-    original.id = 1;
-    original.is_accept = true;
-    original.group_id = 2;
-    original.transitions = {{'a', std::make_shared<State>(State{2, false, -1, {}, NORMAL})}};
-    original.type = BEGIN_GROUP;
+    auto original = std::make_shared<State>(true, 1, BEGIN_GROUP);
+    original->transitions.emplace_back('a', std::make_shared<State>());
 
     // Clone the state
-    std::shared_ptr<State> cloned = original.clone();
+    auto clone = original->clone();
 
-    // Verify that the cloned state has the same properties as the original
-    EXPECT_EQ(cloned->id, original.id);
-    EXPECT_EQ(cloned->is_accept, original.is_accept);
-    EXPECT_EQ(cloned->group_id, original.group_id);
-    EXPECT_EQ(cloned->transitions.size(), original.transitions.size());
-    EXPECT_EQ(cloned->transitions[0].first, original.transitions[0].first);
-    EXPECT_EQ(cloned->transitions[0].second->id, original.transitions[0].second->id);
-    EXPECT_EQ(cloned->type, original.type);
+    // Check that the cloned state has the same properties
+    EXPECT_EQ(clone->is_accept, original->is_accept);
+    EXPECT_EQ(clone->group_id, original->group_id);
+    EXPECT_EQ(clone->type, original->type);
+    EXPECT_EQ(clone->transitions.size(), original->transitions.size());
+
+    // Check that the cloned state has a different ID
+    EXPECT_NE(clone->id, original->id);
+
+    // Check that the transitions are cloned correctly
+    EXPECT_EQ(clone->transitions[0].first, original->transitions[0].first);
+    EXPECT_NE(clone->transitions[0].second->id, original->transitions[0].second->id);
 }
-
 
 TEST(NFATest, LiteralMatch) {
     // "a"
@@ -422,6 +431,8 @@ TEST(NFATest, GroupCaptureAdvanced) {
     const NFA group = NFABuilder::concatenate(group_start, NFABuilder::concatenate(a_or_b, group_end));
     const NFA c_star = NFABuilder::repetition(c);
     const NFA pattern = NFABuilder::concatenate(group, c_star);
+
+    visualize_nfa_dot(pattern, std::cout);
 
     // Expected Behavior:
     // Input: "a", Captures group 1: "a"
