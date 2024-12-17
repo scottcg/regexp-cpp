@@ -94,6 +94,50 @@ public:
     }
 };
 
+// NFA engine
+class nfa_processor {
+public:
+    // Simulate the execution of the NFA for a given input string
+    bool execute(const nfa& nfa, const std::string& input) {
+        std::queue<std::pair<std::shared_ptr<state>, size_t>> to_process;
+        std::unordered_set<std::pair<std::shared_ptr<state>, size_t>, pair_hash> visited;
+
+        to_process.emplace(nfa.start, 0);
+
+        while (!to_process.empty()) {
+            auto [current_state, position] = to_process.front();
+            to_process.pop();
+
+            if (current_state->is_accept && position == input.size()) {
+                return true; // Reached an accept state after consuming all input
+            }
+
+            if (!visited.insert({current_state, position}).second) {
+                continue; // Skip if already visited this state at this input position
+            }
+
+            for (const auto& [matcher, next_state] : current_state->transitions) {
+                if (matcher('\0')) { // ε-transition
+                    to_process.emplace(next_state, position);
+                } else if (position < input.size() && matcher(input[position])) {
+                    to_process.emplace(next_state, position + 1);
+                }
+            }
+        }
+
+        return false;
+    }
+
+private:
+    // Hash function for unordered_set
+    struct pair_hash {
+        template <class T1, class T2>
+        std::size_t operator()(const std::pair<T1, T2>& p) const {
+            return std::hash<int>()(p.first->id) ^ std::hash<T2>()(p.second);
+        }
+    };
+};
+
 // DOT Visualization
 void visualize_nfa_dot(const nfa& nfa, std::ostream& out) {
     out << "digraph NFA {\n";
@@ -185,6 +229,50 @@ TEST(NFA_Builder_Test, Build_Optionality) {
 
     EXPECT_EQ(nfa.start->transitions.size(), 2);
     EXPECT_TRUE(nfa.accept->is_accept);
+}
+
+
+TEST(NFA_Processor_Test, Execute_Concatenation) {
+    nfa_builder builder;
+    nfa_processor processor;
+
+    nfa nfa = builder.build_concatenation("ab");
+    EXPECT_TRUE(processor.execute(nfa, "ab"));
+    EXPECT_FALSE(processor.execute(nfa, "a"));
+    EXPECT_FALSE(processor.execute(nfa, "abc"));
+}
+
+TEST(NFA_Processor_Test, Execute_ZeroOrMore) {
+    nfa_builder builder;
+    nfa_processor processor;
+
+    nfa nfa = builder.build_zero_or_more('a');
+    EXPECT_TRUE(processor.execute(nfa, ""));
+    EXPECT_TRUE(processor.execute(nfa, "a"));
+    EXPECT_TRUE(processor.execute(nfa, "aaaa"));
+    EXPECT_FALSE(processor.execute(nfa, "b"));
+}
+
+TEST(NFA_Processor_Test, Execute_OneOrMore) {
+    nfa_builder builder;
+    nfa_processor processor;
+
+    nfa nfa = builder.build_one_or_more('a');
+    EXPECT_FALSE(processor.execute(nfa, ""));
+    EXPECT_TRUE(processor.execute(nfa, "a"));
+    EXPECT_TRUE(processor.execute(nfa, "aaaa"));
+    EXPECT_FALSE(processor.execute(nfa, "b"));
+}
+
+TEST(NFA_Processor_Test, Execute_Optionality) {
+    nfa_builder builder;
+    nfa_processor processor;
+
+    nfa nfa = builder.build_optionality('a');
+    EXPECT_TRUE(processor.execute(nfa, ""));
+    EXPECT_TRUE(processor.execute(nfa, "a"));
+    EXPECT_FALSE(processor.execute(nfa, "aa"));
+    EXPECT_FALSE(processor.execute(nfa, "b"));
 }
 
 int main(int argc, char **argv) {
