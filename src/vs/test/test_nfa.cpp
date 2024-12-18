@@ -78,62 +78,99 @@ struct nfa {
 // NFA Builder
 class nfa_builder {
 public:
-    // Concatenation: "ab"
+    // Single Character NFA
+    static nfa build_single_character(char c) {
+        auto start = std::make_shared<state>();
+        auto accept = std::make_shared<state>(true);
+        start->transitions.emplace_back(c, accept);
+        return {start, accept};
+    }
+
+    // Generalized Concatenation: Combine two NFAs
+    static nfa build_concatenation(const nfa &nfa1, const nfa &nfa2) {
+        nfa1.accept->is_accept = false;  // Remove accept status from first NFA
+        nfa1.accept->transitions.emplace_back(nfa2.start); // Link first NFA to second NFA
+        return {nfa1.start, nfa2.accept};
+    }
+
+    // Character-based Concatenation: Forward to generalized method
     static nfa build_concatenation(const std::string &input) {
         if (input.empty()) throw std::invalid_argument("Empty input for concatenation.");
 
-        auto start = std::make_shared<state>();
-        auto current = start;
-
-        for (char c : input) {
-            auto next = std::make_shared<state>();
-            current->transitions.emplace_back(c, next);
-            current = next;
+        nfa result = build_single_character(input[0]);
+        for (size_t i = 1; i < input.size(); ++i) {
+            result = build_concatenation(result, build_single_character(input[i]));
         }
-
-        current->is_accept = true;
-        return {start, current};
+        return result;
     }
 
-    // Zero or More: a*
+    // Generalized Zero or More: Kleene Star
+    static nfa build_zero_or_more(const nfa &input_nfa) {
+        auto start = std::make_shared<state>();
+        auto accept = std::make_shared<state>(true);
+
+        start->transitions.emplace_back(input_nfa.start); // ε-transition to input NFA
+        start->transitions.emplace_back(accept);         // ε-transition to accept state
+
+        input_nfa.accept->is_accept = false;
+        input_nfa.accept->transitions.emplace_back(input_nfa.start); // Loop back
+        input_nfa.accept->transitions.emplace_back(accept);          // ε-transition to accept state
+
+        return {start, accept};
+    }
+
+    // Character-based Zero or More: Forward to generalized method
     static nfa build_zero_or_more(char c) {
+        return build_zero_or_more(build_single_character(c));
+    }
+
+    // Generalized One or More
+    static nfa build_one_or_more(const nfa &input_nfa) {
         auto start = std::make_shared<state>();
         auto accept = std::make_shared<state>(true);
-        auto loop = std::make_shared<state>();
 
-        start->transitions.emplace_back(loop);   // ε-transition to loop
-        start->transitions.emplace_back(accept); // ε-transition to accept
-        loop->transitions.emplace_back(c, loop); // Match c and loop
-        loop->transitions.emplace_back(accept);  // ε-transition to accept
+        start->transitions.emplace_back(input_nfa.start); // ε-transition to input NFA
+
+        input_nfa.accept->is_accept = false;
+        input_nfa.accept->transitions.emplace_back(input_nfa.start); // Loop back
+        input_nfa.accept->transitions.emplace_back(accept);          // ε-transition to accept state
 
         return {start, accept};
     }
 
-    // One or More: a+
+    // Character-based One or More: Forward to generalized method
     static nfa build_one_or_more(char c) {
+        return build_one_or_more(build_single_character(c));
+    }
+
+    // Generalized Optionality
+    static nfa build_optionality(const nfa &input_nfa) {
         auto start = std::make_shared<state>();
         auto accept = std::make_shared<state>(true);
-        auto loop = std::make_shared<state>();
 
-        start->transitions.emplace_back(c, loop);
-        loop->transitions.emplace_back(c, loop);
-        loop->transitions.emplace_back(accept);
+        start->transitions.emplace_back(input_nfa.start); // ε-transition to input NFA
+        start->transitions.emplace_back(accept);          // ε-transition to accept state
+
+        input_nfa.accept->is_accept = false;
+        input_nfa.accept->transitions.emplace_back(accept); // ε-transition to accept state
 
         return {start, accept};
     }
 
-    // Optionality: a?
+    // Character-based Optionality: Forward to generalized method
     static nfa build_optionality(char c) {
+        return build_optionality(build_single_character(c));
+    }
+
+    // Generalized Character Class
+    static nfa build_character_class(const std::unordered_set<char> &char_set, bool negated = false) {
         auto start = std::make_shared<state>();
         auto accept = std::make_shared<state>(true);
-
-        start->transitions.emplace_back(c, accept);
-        start->transitions.emplace_back(accept); // ε-transition
-
+        start->transitions.emplace_back(char_set, accept, negated);
         return {start, accept};
     }
 
-    // Character Classes: [a-z], [^a-z], [abc]
+    // String-based Character Class
     static nfa build_character_class(const std::string &input) {
         bool is_negated = input[0] == '^';
         std::unordered_set<char> char_set;
@@ -148,12 +185,7 @@ public:
                 char_set.insert(input[i]);
             }
         }
-
-        auto start = std::make_shared<state>();
-        auto accept = std::make_shared<state>(true);
-        start->transitions.emplace_back(char_set, accept, is_negated);
-
-        return {start, accept};
+        return build_character_class(char_set, is_negated);
     }
 };
 
@@ -262,175 +294,89 @@ void visualize_nfa_dot(const nfa &nfa, std::ostream &out) {
 
 TEST(NFA_Builder_Test, Build_Concatenation) {
     nfa nfa = nfa_builder::build_concatenation("ab");
+    nfa_processor processor;
 
-    visualize_nfa_dot(nfa, std::cout);
-
-    // Start state should have one transition to the next state
-    ASSERT_EQ(nfa.start->transitions.size(), 1);
-    const auto &first_transition = nfa.start->transitions[0];
-    EXPECT_EQ(first_transition.type, LITERAL);
-    EXPECT_EQ(first_transition.literal, 'a');
-
-    // Intermediate state should transition to accept state
-    auto middle_state = first_transition.target;
-    ASSERT_EQ(middle_state->transitions.size(), 1);
-    const auto &second_transition = middle_state->transitions[0];
-    EXPECT_EQ(second_transition.type, LITERAL);
-    EXPECT_EQ(second_transition.literal, 'b');
-
-    // Final state should be accept
-    EXPECT_TRUE(second_transition.target->is_accept);
+    EXPECT_TRUE(processor.execute(nfa, "ab"));
+    EXPECT_FALSE(processor.execute(nfa, "a"));
+    EXPECT_FALSE(processor.execute(nfa, "b"));
+    EXPECT_FALSE(processor.execute(nfa, "abc"));
 }
 
 TEST(NFA_Builder_Test, Build_ZeroOrMore) {
     nfa nfa = nfa_builder::build_zero_or_more('a');
+    nfa_processor processor;
 
-    visualize_nfa_dot(nfa, std::cout);
-
-    ASSERT_EQ(nfa.start->transitions.size(), 2);
-    const auto &epsilon_to_loop = nfa.start->transitions[0];
-    const auto &epsilon_to_accept = nfa.start->transitions[1];
-
-    EXPECT_EQ(epsilon_to_loop.type, EPSILON);
-    EXPECT_EQ(epsilon_to_accept.type, EPSILON);
-
-    auto loop_state = epsilon_to_loop.target;
-    ASSERT_EQ(loop_state->transitions.size(), 2);
-    const auto &match_loop = loop_state->transitions[0];
-    const auto &epsilon_to_accept_from_loop = loop_state->transitions[1];
-
-    EXPECT_EQ(match_loop.type, LITERAL);
-    EXPECT_EQ(match_loop.literal, 'a');
-    EXPECT_EQ(epsilon_to_accept_from_loop.type, EPSILON);
-
-    EXPECT_TRUE(epsilon_to_accept.target->is_accept);
+    EXPECT_TRUE(processor.execute(nfa, ""));       // Zero occurrences
+    EXPECT_TRUE(processor.execute(nfa, "a"));      // One occurrence
+    EXPECT_TRUE(processor.execute(nfa, "aaaa"));   // Multiple occurrences
+    EXPECT_FALSE(processor.execute(nfa, "b"));     // Invalid character
+    EXPECT_FALSE(processor.execute(nfa, "aaab"));  // Ends with invalid character
 }
 
 TEST(NFA_Builder_Test, Build_OneOrMore) {
     nfa nfa = nfa_builder::build_one_or_more('a');
+    nfa_processor processor;
 
-    visualize_nfa_dot(nfa, std::cout);
-
-    ASSERT_EQ(nfa.start->transitions.size(), 1);
-    const auto &first_transition = nfa.start->transitions[0];
-    EXPECT_EQ(first_transition.type, LITERAL);
-    EXPECT_EQ(first_transition.literal, 'a');
-
-    auto loop_state = first_transition.target;
-    ASSERT_EQ(loop_state->transitions.size(), 2);
-
-    const auto &match_loop = loop_state->transitions[0];
-    const auto &epsilon_to_accept = loop_state->transitions[1];
-
-    EXPECT_EQ(match_loop.type, LITERAL);
-    EXPECT_EQ(match_loop.literal, 'a');
-    EXPECT_EQ(epsilon_to_accept.type, EPSILON);
-
-    EXPECT_TRUE(epsilon_to_accept.target->is_accept);
+    EXPECT_FALSE(processor.execute(nfa, ""));      // Zero occurrences
+    EXPECT_TRUE(processor.execute(nfa, "a"));      // One occurrence
+    EXPECT_TRUE(processor.execute(nfa, "aaaa"));   // Multiple occurrences
+    EXPECT_FALSE(processor.execute(nfa, "b"));     // Invalid character
+    EXPECT_FALSE(processor.execute(nfa, "aaab"));  // Ends with invalid character
 }
 
 TEST(NFA_Builder_Test, Build_Optionality) {
     nfa nfa = nfa_builder::build_optionality('a');
-
-    visualize_nfa_dot(nfa, std::cout);
-
-    EXPECT_EQ(nfa.start->transitions.size(), 2);
-    EXPECT_TRUE(nfa.accept->is_accept);
-}
-
-
-TEST(NFA_Processor_Test, Execute_Concatenation) {
     nfa_processor processor;
 
-    nfa nfa = nfa_builder::build_concatenation("ab");
-    EXPECT_TRUE(processor.execute(nfa, "ab"));
-    EXPECT_FALSE(processor.execute(nfa, "a"));
-    EXPECT_FALSE(processor.execute(nfa, "abc"));
+    EXPECT_TRUE(processor.execute(nfa, ""));       // Zero occurrences
+    EXPECT_TRUE(processor.execute(nfa, "a"));      // One occurrence
+    EXPECT_FALSE(processor.execute(nfa, "aa"));    // Too many occurrences
+    EXPECT_FALSE(processor.execute(nfa, "b"));     // Invalid character
 }
-
-TEST(NFA_Processor_Test, Execute_ZeroOrMore) {
-    nfa_processor processor;
-
-    nfa nfa = nfa_builder::build_zero_or_more('a');
-    EXPECT_TRUE(processor.execute(nfa, ""));
-    EXPECT_TRUE(processor.execute(nfa, "a"));
-    EXPECT_TRUE(processor.execute(nfa, "aaaa"));
-    EXPECT_FALSE(processor.execute(nfa, "b"));
-}
-
-TEST(NFA_Processor_Test, Execute_OneOrMore) {
-    nfa_processor processor;
-
-    nfa nfa = nfa_builder::build_one_or_more('a');
-    EXPECT_FALSE(processor.execute(nfa, ""));
-    EXPECT_TRUE(processor.execute(nfa, "a"));
-    EXPECT_TRUE(processor.execute(nfa, "aaaa"));
-    EXPECT_FALSE(processor.execute(nfa, "b"));
-}
-
-TEST(NFA_Processor_Test, Execute_Optionality) {
-    nfa_processor processor;
-
-    nfa nfa = nfa_builder::build_optionality('a');
-    EXPECT_TRUE(processor.execute(nfa, ""));
-    EXPECT_TRUE(processor.execute(nfa, "a"));
-    EXPECT_FALSE(processor.execute(nfa, "aa"));
-    EXPECT_FALSE(processor.execute(nfa, "b"));
-}
-
 
 TEST(NFA_Builder_Test, Build_CharacterClass_Range) {
+    nfa nfa = nfa_builder::build_character_class("a-z");
     nfa_processor processor;
 
-    nfa nfa = nfa_builder::build_character_class("a-z");
-    EXPECT_TRUE(processor.execute(nfa, "a"));
-    EXPECT_TRUE(processor.execute(nfa, "m"));
-    EXPECT_TRUE(processor.execute(nfa, "z"));
-    EXPECT_FALSE(processor.execute(nfa, "A"));
-    EXPECT_FALSE(processor.execute(nfa, "1"));
+    EXPECT_TRUE(processor.execute(nfa, "a"));      // Lower boundary
+    EXPECT_TRUE(processor.execute(nfa, "m"));      // Middle of the range
+    EXPECT_TRUE(processor.execute(nfa, "z"));      // Upper boundary
+    EXPECT_FALSE(processor.execute(nfa, "A"));     // Out of range
+    EXPECT_FALSE(processor.execute(nfa, "1"));     // Non-alphabetic character
 }
 
 TEST(NFA_Builder_Test, Build_CharacterClass_Explicit) {
+    nfa nfa = nfa_builder::build_character_class("abc");
     nfa_processor processor;
 
-    nfa nfa = nfa_builder::build_character_class("abc");
-
-    visualize_nfa_dot(nfa, std::cout);
-
-    EXPECT_TRUE(processor.execute(nfa, "a"));
-    EXPECT_TRUE(processor.execute(nfa, "b"));
-    EXPECT_TRUE(processor.execute(nfa, "c"));
-    EXPECT_FALSE(processor.execute(nfa, "d"));
-    EXPECT_FALSE(processor.execute(nfa, "z"));
+    EXPECT_TRUE(processor.execute(nfa, "a"));      // Matches 'a'
+    EXPECT_TRUE(processor.execute(nfa, "b"));      // Matches 'b'
+    EXPECT_TRUE(processor.execute(nfa, "c"));      // Matches 'c'
+    EXPECT_FALSE(processor.execute(nfa, "d"));     // Not in the set
+    EXPECT_FALSE(processor.execute(nfa, "z"));     // Not in the set
 }
 
 TEST(NFA_Builder_Test, Build_CharacterClass_NegatedRange) {
+    nfa nfa = nfa_builder::build_character_class("^a-z");
     nfa_processor processor;
 
-    nfa nfa = nfa_builder::build_character_class("^a-z");
-
-    visualize_nfa_dot(nfa, std::cout);
-
-    EXPECT_TRUE(processor.execute(nfa, "A"));
-    EXPECT_TRUE(processor.execute(nfa, "1"));
-    EXPECT_TRUE(processor.execute(nfa, "!"));
-    EXPECT_FALSE(processor.execute(nfa, "a"));
-    EXPECT_FALSE(processor.execute(nfa, "m"));
-    EXPECT_FALSE(processor.execute(nfa, "z"));
+    EXPECT_TRUE(processor.execute(nfa, "A"));      // Uppercase letter
+    EXPECT_TRUE(processor.execute(nfa, "1"));      // Digit
+    EXPECT_TRUE(processor.execute(nfa, "!"));      // Special character
+    EXPECT_FALSE(processor.execute(nfa, "a"));     // Lowercase letter in range
+    EXPECT_FALSE(processor.execute(nfa, "m"));     // Middle of the range
+    EXPECT_FALSE(processor.execute(nfa, "z"));     // Upper boundary of range
 }
 
 TEST(NFA_Builder_Test, Build_CharacterClass_NegatedExplicit) {
+    nfa nfa = nfa_builder::build_character_class("^abc");
     nfa_processor processor;
 
-    nfa nfa = nfa_builder::build_character_class("^abc");
-    
-    visualize_nfa_dot(nfa, std::cout);
-
-    EXPECT_TRUE(processor.execute(nfa, "d"));
-    EXPECT_TRUE(processor.execute(nfa, "z"));
-    EXPECT_FALSE(processor.execute(nfa, "a"));
-    EXPECT_FALSE(processor.execute(nfa, "b"));
-    EXPECT_FALSE(processor.execute(nfa, "c"));
+    EXPECT_TRUE(processor.execute(nfa, "d"));      // Outside explicit set
+    EXPECT_TRUE(processor.execute(nfa, "z"));      // Another character outside the set
+    EXPECT_FALSE(processor.execute(nfa, "a"));     // Matches negated set
+    EXPECT_FALSE(processor.execute(nfa, "b"));     // Matches negated set
+    EXPECT_FALSE(processor.execute(nfa, "c"));     // Matches negated set
 }
 
 int main(int argc, char **argv) {
