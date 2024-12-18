@@ -23,7 +23,7 @@ struct state {
     state_type type = NORMAL;
 
     // Use a matcher function instead of fixed 'char'
-    std::vector<std::pair<std::function<bool(char)>, std::shared_ptr<state> > > transitions;
+    std::vector< std::pair< std::function<bool(char) >, std::shared_ptr<state> > > transitions;
 
     explicit state(bool is_accept = false) : id(next_id++), is_accept(is_accept) {
     }
@@ -108,7 +108,7 @@ public:
 
 private:
     // Helper to parse ranges and sets into a matcher function
-    std::function<bool(char)> parse_character_class(const std::string &input, bool is_negated) {
+    static std::function<bool(char)> parse_character_class(const std::string &input, bool is_negated) {
         std::unordered_set<char> char_set;
 
         for (size_t i = 0; i < input.size(); ++i) {
