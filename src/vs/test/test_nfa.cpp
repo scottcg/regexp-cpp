@@ -5,14 +5,53 @@
 #include <string>
 #include <memory>
 #include <sstream>
-#include <functional>
 #include <gtest/gtest.h>
 
 enum state_type {
-    NORMAL, // Regular transition
-    BEGIN_GROUP, // Start of a group
-    END_GROUP, // End of a group
-    BACK_REFERENCE // Back-reference to a group
+    NORMAL,          // Regular transition
+    LOOKAHEAD_POS,   // Positive Lookahead
+    LOOKAHEAD_NEG,   // Negative Lookahead
+    BEGIN_GROUP,     // Start of a group
+    END_GROUP,       // End of a group
+    BACK_REFERENCE   // Back-reference to a group
+};
+
+enum transition_type {
+    EPSILON,          // ε-transition
+    LITERAL,          // Single character match
+    CHARACTER_CLASS,  // Character class (e.g., [a-z])
+    NEGATED_CLASS     // Negated character class (e.g., [^a-z])
+};
+
+// Transition object
+struct transition {
+    transition_type type;
+    std::shared_ptr<struct state> target;
+    char literal;                          // For LITERAL transitions
+    std::unordered_set<char> char_set;     // For CHARACTER_CLASS and NEGATED_CLASS
+
+    // Epsilon constructor
+    transition(std::shared_ptr<state> target)
+        : type(EPSILON), target(target), literal('\0') {}
+
+    // Literal constructor
+    transition(char c, std::shared_ptr<state> target)
+        : type(LITERAL), target(target), literal(c) {}
+
+    // Character class constructor
+    transition(const std::unordered_set<char>& set, std::shared_ptr<state> target, bool negated = false)
+        : type(negated ? NEGATED_CLASS : CHARACTER_CLASS), target(target), char_set(set) {}
+
+    // Matches input character
+    bool matches(char input) const {
+        switch (type) {
+            case EPSILON: return true;
+            case LITERAL: return input == literal;
+            case CHARACTER_CLASS: return char_set.count(input) > 0;
+            case NEGATED_CLASS: return char_set.count(input) == 0;
+            default: return false;
+        }
+    }
 };
 
 // State of an NFA
@@ -21,12 +60,9 @@ struct state {
     int id;
     bool is_accept = false;
     state_type type = NORMAL;
+    std::vector<transition> transitions;
 
-    // Use a matcher function instead of fixed 'char'
-    std::vector< std::pair< std::function<bool(char) >, std::shared_ptr<state> > > transitions;
-
-    explicit state(bool is_accept = false) : id(next_id++), is_accept(is_accept) {
-    }
+    explicit state(bool is_accept = false) : id(next_id++), is_accept(is_accept) {}
 };
 
 int state::next_id = 0;
@@ -37,6 +73,7 @@ struct nfa {
     std::shared_ptr<state> accept;
 };
 
+// NFA Builder
 class nfa_builder {
 public:
     // Concatenation: "ab"
@@ -46,9 +83,9 @@ public:
         auto start = std::make_shared<state>();
         auto current = start;
 
-        for (char c: input) {
+        for (char c : input) {
             auto next = std::make_shared<state>();
-            current->transitions.emplace_back([c](char input) { return input == c; }, next);
+            current->transitions.emplace_back(transition(c, next));
             current = next;
         }
 
@@ -62,10 +99,10 @@ public:
         auto accept = std::make_shared<state>(true);
         auto loop = std::make_shared<state>();
 
-        start->transitions.emplace_back([](char) { return true; }, accept); // ε-transition
-        start->transitions.emplace_back([](char) { return true; }, loop); // ε-transition
-        loop->transitions.emplace_back([c](char input) { return input == c; }, loop);
-        loop->transitions.emplace_back([](char) { return true; }, accept); // ε-transition
+        start->transitions.emplace_back(transition(loop));   // ε-transition to loop
+        start->transitions.emplace_back(transition(accept)); // ε-transition to accept
+        loop->transitions.emplace_back(transition(c, loop)); // Match c and loop
+        loop->transitions.emplace_back(transition(accept));  // ε-transition to accept
 
         return {start, accept};
     }
@@ -76,9 +113,9 @@ public:
         auto accept = std::make_shared<state>(true);
         auto loop = std::make_shared<state>();
 
-        start->transitions.emplace_back([c](char input) { return input == c; }, loop);
-        loop->transitions.emplace_back([c](char input) { return input == c; }, loop);
-        loop->transitions.emplace_back([](char) { return true; }, accept); // ε-transition
+        start->transitions.emplace_back(transition(c, loop));
+        loop->transitions.emplace_back(transition(c, loop));
+        loop->transitions.emplace_back(transition(accept));
 
         return {start, accept};
     }
@@ -88,8 +125,8 @@ public:
         auto start = std::make_shared<state>();
         auto accept = std::make_shared<state>(true);
 
-        start->transitions.emplace_back([](char) { return true; }, accept); // ε-transition
-        start->transitions.emplace_back([c](char input) { return input == c; }, accept);
+        start->transitions.emplace_back(transition(c, accept));
+        start->transitions.emplace_back(transition(accept)); // ε-transition
 
         return {start, accept};
     }
@@ -97,99 +134,59 @@ public:
     // Character Classes: [a-z], [^a-z], [abc]
     nfa build_character_class(const std::string &input) {
         bool is_negated = input[0] == '^';
-        auto matcher = parse_character_class(is_negated ? input.substr(1) : input, is_negated);
-
-        auto start = std::make_shared<state>();
-        auto accept = std::make_shared<state>(true);
-
-        start->transitions.emplace_back(matcher, accept);
-        return {start, accept};
-    }
-
-private:
-    // Helper to parse ranges and sets into a matcher function
-    static std::function<bool(char)> parse_character_class(const std::string &input, bool is_negated) {
         std::unordered_set<char> char_set;
 
-        for (size_t i = 0; i < input.size(); ++i) {
+        for (size_t i = (is_negated ? 1 : 0); i < input.size(); ++i) {
             if (i + 2 < input.size() && input[i + 1] == '-') {
-                // Handle ranges like a-z
                 for (char c = input[i]; c <= input[i + 2]; ++c) {
                     char_set.insert(c);
                 }
-                i += 2; // Skip the range
+                i += 2;
             } else {
-                char_set.insert(input[i]); // Add individual characters
+                char_set.insert(input[i]);
             }
         }
 
-        if (is_negated) {
-            return [char_set](char c) {
-                // Explicitly match anything NOT in the char_set
-                return c != '\0' && char_set.find(c) == char_set.end();
-            };
-        } else {
-            return [char_set](char c) {
-                // Match anything in the char_set
-                return c != '\0' && char_set.find(c) != char_set.end();
-            };
-        }
+        auto start = std::make_shared<state>();
+        auto accept = std::make_shared<state>(true);
+        start->transitions.emplace_back(transition(char_set, accept, is_negated));
+
+        return {start, accept};
     }
 };
 
-// NFA engine
+// NFA Processor
 class nfa_processor {
 public:
-    // Simulate the execution of the NFA for a given input string
-    bool execute(const nfa& nfa, const std::string& input, bool debug = false) {
+    bool execute(const nfa &nfa, const std::string &input) {
         std::queue<std::pair<std::shared_ptr<state>, size_t>> to_process;
         std::unordered_set<std::pair<std::shared_ptr<state>, size_t>, pair_hash> visited;
 
         to_process.emplace(nfa.start, 0);
 
         while (!to_process.empty()) {
-            auto [current_state, position] = to_process.front();
+            auto [current, pos] = to_process.front();
             to_process.pop();
 
-            if (debug)
-                std::cout << "State: " << current_state->id
-                          << ", Input Position: " << position
-                          << ", Accept: " << (current_state->is_accept ? "YES" : "NO") << "\n";
+            if (current->is_accept && pos == input.size()) return true;
 
-            if (current_state->is_accept && position == input.size()) {
-                if (debug)
-                    std::cout << "Matched! Reached accept state.\n";
-                return true;
-            }
+            if (!visited.insert({current, pos}).second) continue;
 
-            if (!visited.insert({current_state, position}).second) {
-                continue;
-            }
-
-            for (const auto& [matcher, next_state] : current_state->transitions) {
-                if (matcher('\0')) { // ε-transition
-                    if (debug)
-                        std::cout << "  ε-transition to State " << next_state->id << "\n";
-                    to_process.emplace(next_state, position);
-                } else if (position < input.size() && matcher(input[position])) {
-                    if (debug)
-                        std::cout << "  Match '" << input[position] << "' -> State " << next_state->id << "\n";
-                    to_process.emplace(next_state, position + 1);
-                } else if (debug) {
-                    std::cout << "  No match for '" << input[position] << "' at State " << current_state->id << "\n";
+            for (const auto &t : current->transitions) {
+                if (t.type == EPSILON) {
+                    to_process.emplace(t.target, pos);
+                } else if (pos < input.size() && t.matches(input[pos])) {
+                    to_process.emplace(t.target, pos + 1);
                 }
             }
         }
 
-        if (debug)
-            std::cout << "No valid path found.\n";
         return false;
     }
 
 private:
-    // Hash function for unordered_set
     struct pair_hash {
-        template<class T1, class T2>
+        template <class T1, class T2>
         std::size_t operator()(const std::pair<T1, T2> &p) const {
             return std::hash<int>()(p.first->id) ^ std::hash<T2>()(p.second);
         }
@@ -198,15 +195,11 @@ private:
 
 // DOT Visualization
 void visualize_nfa_dot(const nfa &nfa, std::ostream &out) {
-    out << "digraph NFA {\n";
-    out << "  rankdir=LR;\n";
-    out << "  node [shape=circle];\n";
-    out << "  start [shape=point];\n";
+    out << "digraph NFA {\n  rankdir=LR;\n  node [shape=circle];\n  start [shape=point];\n";
+    out << "  start -> " << nfa.start->id << " [label=\"ε\"];\n";
 
     std::queue<std::shared_ptr<state>> to_process;
     std::unordered_set<int> visited;
-
-    out << "  start -> " << nfa.start->id << " [label=\"ε\"];\n";
     to_process.push(nfa.start);
     visited.insert(nfa.start->id);
 
@@ -214,34 +207,42 @@ void visualize_nfa_dot(const nfa &nfa, std::ostream &out) {
         auto current = to_process.front();
         to_process.pop();
 
-        if (current->is_accept) {
-            out << "  " << current->id << " [shape=doublecircle];\n";
-        }
+        if (current->is_accept) out << "  " << current->id << " [shape=doublecircle];\n";
 
-        for (const auto &[matcher, next] : current->transitions) {
-            std::string label = (matcher('\0')) ? "ε" : "match"; // Adjust for matchers
-            out << "  " << current->id << " -> " << next->id << " [label=\"" << label << "\"];\n";
+        for (const auto &t : current->transitions) {
+            std::string label = (t.type == EPSILON) ? "ε" : (t.type == LITERAL) ? std::string(1, t.literal)
+                                                                               : "class";
+            out << "  " << current->id << " -> " << t.target->id << " [label=\"" << label << "\"];\n";
 
-            if (visited.insert(next->id).second) {
-                to_process.push(next);
+            if (visited.insert(t.target->id).second) {
+                to_process.push(t.target);
             }
         }
     }
-
     out << "}\n";
 }
 
-// Unit Tests
 TEST(NFA_Builder_Test, Build_Concatenation) {
     nfa_builder builder;
     nfa nfa = builder.build_concatenation("ab");
 
     visualize_nfa_dot(nfa, std::cout);
 
-    EXPECT_EQ(nfa.start->transitions.size(), 1);
-    auto middle_state = nfa.start->transitions[0].second;
+    // Start state should have one transition to the next state
+    ASSERT_EQ(nfa.start->transitions.size(), 1);
+    const auto &first_transition = nfa.start->transitions[0];
+    EXPECT_EQ(first_transition.type, LITERAL);
+    EXPECT_EQ(first_transition.literal, 'a');
+
+    // Intermediate state should transition to accept state
+    auto middle_state = first_transition.target;
     ASSERT_EQ(middle_state->transitions.size(), 1);
-    EXPECT_TRUE(middle_state->transitions[0].second->is_accept);
+    const auto &second_transition = middle_state->transitions[0];
+    EXPECT_EQ(second_transition.type, LITERAL);
+    EXPECT_EQ(second_transition.literal, 'b');
+
+    // Final state should be accept
+    EXPECT_TRUE(second_transition.target->is_accept);
 }
 
 TEST(NFA_Builder_Test, Build_ZeroOrMore) {
@@ -250,10 +251,23 @@ TEST(NFA_Builder_Test, Build_ZeroOrMore) {
 
     visualize_nfa_dot(nfa, std::cout);
 
-    EXPECT_EQ(nfa.start->transitions.size(), 2);
-    auto loop_state = nfa.start->transitions[1].second;
+    ASSERT_EQ(nfa.start->transitions.size(), 2);
+    const auto &epsilon_to_loop = nfa.start->transitions[0];
+    const auto &epsilon_to_accept = nfa.start->transitions[1];
+
+    EXPECT_EQ(epsilon_to_loop.type, EPSILON);
+    EXPECT_EQ(epsilon_to_accept.type, EPSILON);
+
+    auto loop_state = epsilon_to_loop.target;
     ASSERT_EQ(loop_state->transitions.size(), 2);
-    EXPECT_TRUE(nfa.accept->is_accept);
+    const auto &match_loop = loop_state->transitions[0];
+    const auto &epsilon_to_accept_from_loop = loop_state->transitions[1];
+
+    EXPECT_EQ(match_loop.type, LITERAL);
+    EXPECT_EQ(match_loop.literal, 'a');
+    EXPECT_EQ(epsilon_to_accept_from_loop.type, EPSILON);
+
+    EXPECT_TRUE(epsilon_to_accept.target->is_accept);
 }
 
 TEST(NFA_Builder_Test, Build_OneOrMore) {
@@ -262,10 +276,22 @@ TEST(NFA_Builder_Test, Build_OneOrMore) {
 
     visualize_nfa_dot(nfa, std::cout);
 
-    EXPECT_EQ(nfa.start->transitions.size(), 1);
-    auto loop_state = nfa.start->transitions[0].second;
+    ASSERT_EQ(nfa.start->transitions.size(), 1);
+    const auto &first_transition = nfa.start->transitions[0];
+    EXPECT_EQ(first_transition.type, LITERAL);
+    EXPECT_EQ(first_transition.literal, 'a');
+
+    auto loop_state = first_transition.target;
     ASSERT_EQ(loop_state->transitions.size(), 2);
-    EXPECT_TRUE(nfa.accept->is_accept);
+
+    const auto &match_loop = loop_state->transitions[0];
+    const auto &epsilon_to_accept = loop_state->transitions[1];
+
+    EXPECT_EQ(match_loop.type, LITERAL);
+    EXPECT_EQ(match_loop.literal, 'a');
+    EXPECT_EQ(epsilon_to_accept.type, EPSILON);
+
+    EXPECT_TRUE(epsilon_to_accept.target->is_accept);
 }
 
 TEST(NFA_Builder_Test, Build_Optionality) {
