@@ -141,8 +141,8 @@ private:
 class nfa_processor {
 public:
     // Simulate the execution of the NFA for a given input string
-    bool execute(const nfa &nfa, const std::string &input) {
-        std::queue<std::pair<std::shared_ptr<state>, size_t> > to_process;
+    bool execute(const nfa& nfa, const std::string& input, bool debug = false) {
+        std::queue<std::pair<std::shared_ptr<state>, size_t>> to_process;
         std::unordered_set<std::pair<std::shared_ptr<state>, size_t>, pair_hash> visited;
 
         to_process.emplace(nfa.start, 0);
@@ -151,24 +151,38 @@ public:
             auto [current_state, position] = to_process.front();
             to_process.pop();
 
+            if (debug)
+                std::cout << "State: " << current_state->id
+                          << ", Input Position: " << position
+                          << ", Accept: " << (current_state->is_accept ? "YES" : "NO") << "\n";
+
             if (current_state->is_accept && position == input.size()) {
-                return true; // Reached an accept state after consuming all input
+                if (debug)
+                    std::cout << "Matched! Reached accept state.\n";
+                return true;
             }
 
             if (!visited.insert({current_state, position}).second) {
-                continue; // Skip if already visited this state at this input position
+                continue;
             }
 
-            for (const auto &[matcher, next_state]: current_state->transitions) {
-                if (matcher('\0')) {
-                    // ε-transition
+            for (const auto& [matcher, next_state] : current_state->transitions) {
+                if (matcher('\0')) { // ε-transition
+                    if (debug)
+                        std::cout << "  ε-transition to State " << next_state->id << "\n";
                     to_process.emplace(next_state, position);
                 } else if (position < input.size() && matcher(input[position])) {
+                    if (debug)
+                        std::cout << "  Match '" << input[position] << "' -> State " << next_state->id << "\n";
                     to_process.emplace(next_state, position + 1);
+                } else if (debug) {
+                    std::cout << "  No match for '" << input[position] << "' at State " << current_state->id << "\n";
                 }
             }
         }
 
+        if (debug)
+            std::cout << "No valid path found.\n";
         return false;
     }
 
@@ -189,7 +203,7 @@ void visualize_nfa_dot(const nfa &nfa, std::ostream &out) {
     out << "  node [shape=circle];\n";
     out << "  start [shape=point];\n";
 
-    std::queue<std::shared_ptr<state> > to_process;
+    std::queue<std::shared_ptr<state>> to_process;
     std::unordered_set<int> visited;
 
     out << "  start -> " << nfa.start->id << " [label=\"ε\"];\n";
@@ -204,8 +218,9 @@ void visualize_nfa_dot(const nfa &nfa, std::ostream &out) {
             out << "  " << current->id << " [shape=doublecircle];\n";
         }
 
-        for (const auto &[matcher, next]: current->transitions) {
-            out << "  " << current->id << " -> " << next->id << " [label=\"match\"];\n";
+        for (const auto &[matcher, next] : current->transitions) {
+            std::string label = (matcher('\0')) ? "ε" : "match"; // Adjust for matchers
+            out << "  " << current->id << " -> " << next->id << " [label=\"" << label << "\"];\n";
 
             if (visited.insert(next->id).second) {
                 to_process.push(next);
@@ -221,10 +236,7 @@ TEST(NFA_Builder_Test, Build_Concatenation) {
     nfa_builder builder;
     nfa nfa = builder.build_concatenation("ab");
 
-    std::stringstream ss;
-    visualize_nfa_dot(nfa, ss);
-
-    std::cout << ss.str();
+    visualize_nfa_dot(nfa, std::cout);
 
     EXPECT_EQ(nfa.start->transitions.size(), 1);
     auto middle_state = nfa.start->transitions[0].second;
@@ -236,10 +248,7 @@ TEST(NFA_Builder_Test, Build_ZeroOrMore) {
     nfa_builder builder;
     nfa nfa = builder.build_zero_or_more('a');
 
-    std::stringstream ss;
-    visualize_nfa_dot(nfa, ss);
-
-    std::cout << ss.str();
+    visualize_nfa_dot(nfa, std::cout);
 
     EXPECT_EQ(nfa.start->transitions.size(), 2);
     auto loop_state = nfa.start->transitions[1].second;
@@ -251,10 +260,7 @@ TEST(NFA_Builder_Test, Build_OneOrMore) {
     nfa_builder builder;
     nfa nfa = builder.build_one_or_more('a');
 
-    std::stringstream ss;
-    visualize_nfa_dot(nfa, ss);
-
-    std::cout << ss.str();
+    visualize_nfa_dot(nfa, std::cout);
 
     EXPECT_EQ(nfa.start->transitions.size(), 1);
     auto loop_state = nfa.start->transitions[0].second;
@@ -266,10 +272,7 @@ TEST(NFA_Builder_Test, Build_Optionality) {
     nfa_builder builder;
     nfa nfa = builder.build_optionality('a');
 
-    std::stringstream ss;
-    visualize_nfa_dot(nfa, ss);
-
-    std::cout << ss.str();
+    visualize_nfa_dot(nfa, std::cout);
 
     EXPECT_EQ(nfa.start->transitions.size(), 2);
     EXPECT_TRUE(nfa.accept->is_accept);
@@ -354,10 +357,7 @@ TEST(NFA_Builder_Test, Build_CharacterClass_NegatedRange) {
 
     nfa nfa = builder.build_character_class("^a-z");
 
-    std::stringstream ss;
-    visualize_nfa_dot(nfa, ss);
-
-    std::cout << ss.str();
+    visualize_nfa_dot(nfa, std::cout);
 
     EXPECT_TRUE(processor.execute(nfa, "A"));
     EXPECT_TRUE(processor.execute(nfa, "1"));
@@ -372,10 +372,7 @@ TEST(NFA_Builder_Test, Build_CharacterClass_NegatedExplicit) {
     nfa_processor processor;
 
     nfa nfa = builder.build_character_class("^abc");
-    std::stringstream ss;
-    visualize_nfa_dot(nfa, ss);
-
-    std::cout << ss.str();
+    visualize_nfa_dot(nfa, std::cout);
 
     EXPECT_TRUE(processor.execute(nfa, "d"));
     EXPECT_TRUE(processor.execute(nfa, "z"));
