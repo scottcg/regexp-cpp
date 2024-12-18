@@ -1,4 +1,5 @@
 #include <iostream>
+#include <utility>
 #include <vector>
 #include <queue>
 #include <unordered_set>
@@ -31,19 +32,20 @@ struct transition {
     std::unordered_set<char> char_set;     // For CHARACTER_CLASS and NEGATED_CLASS
 
     // Epsilon constructor
-    transition(std::shared_ptr<state> target)
-        : type(EPSILON), target(target), literal('\0') {}
+    explicit transition(std::shared_ptr<state> target)
+        : type(EPSILON), target(std::move(target)), literal('\0') {}
 
     // Literal constructor
     transition(char c, std::shared_ptr<state> target)
-        : type(LITERAL), target(target), literal(c) {}
+        : type(LITERAL), target(std::move(target)), literal(c) {}
 
     // Character class constructor
     transition(const std::unordered_set<char>& set, std::shared_ptr<state> target, bool negated = false)
-        : type(negated ? NEGATED_CLASS : CHARACTER_CLASS), target(target), char_set(set) {}
+        : type(negated ? NEGATED_CLASS : CHARACTER_CLASS), target(std::move(target)), literal(0), char_set(set) {
+    }
 
     // Matches input character
-    bool matches(char input) const {
+    bool matches(const char input) const {
         switch (type) {
             case EPSILON: return true;
             case LITERAL: return input == literal;
@@ -77,7 +79,7 @@ struct nfa {
 class nfa_builder {
 public:
     // Concatenation: "ab"
-    nfa build_concatenation(const std::string &input) {
+    static nfa build_concatenation(const std::string &input) {
         if (input.empty()) throw std::invalid_argument("Empty input for concatenation.");
 
         auto start = std::make_shared<state>();
@@ -85,7 +87,7 @@ public:
 
         for (char c : input) {
             auto next = std::make_shared<state>();
-            current->transitions.emplace_back(transition(c, next));
+            current->transitions.emplace_back(c, next);
             current = next;
         }
 
@@ -94,45 +96,45 @@ public:
     }
 
     // Zero or More: a*
-    nfa build_zero_or_more(char c) {
+    static nfa build_zero_or_more(char c) {
         auto start = std::make_shared<state>();
         auto accept = std::make_shared<state>(true);
         auto loop = std::make_shared<state>();
 
-        start->transitions.emplace_back(transition(loop));   // ε-transition to loop
-        start->transitions.emplace_back(transition(accept)); // ε-transition to accept
-        loop->transitions.emplace_back(transition(c, loop)); // Match c and loop
-        loop->transitions.emplace_back(transition(accept));  // ε-transition to accept
+        start->transitions.emplace_back(loop);   // ε-transition to loop
+        start->transitions.emplace_back(accept); // ε-transition to accept
+        loop->transitions.emplace_back(c, loop); // Match c and loop
+        loop->transitions.emplace_back(accept);  // ε-transition to accept
 
         return {start, accept};
     }
 
     // One or More: a+
-    nfa build_one_or_more(char c) {
+    static nfa build_one_or_more(char c) {
         auto start = std::make_shared<state>();
         auto accept = std::make_shared<state>(true);
         auto loop = std::make_shared<state>();
 
-        start->transitions.emplace_back(transition(c, loop));
-        loop->transitions.emplace_back(transition(c, loop));
-        loop->transitions.emplace_back(transition(accept));
+        start->transitions.emplace_back(c, loop);
+        loop->transitions.emplace_back(c, loop);
+        loop->transitions.emplace_back(accept);
 
         return {start, accept};
     }
 
     // Optionality: a?
-    nfa build_optionality(char c) {
+    static nfa build_optionality(char c) {
         auto start = std::make_shared<state>();
         auto accept = std::make_shared<state>(true);
 
-        start->transitions.emplace_back(transition(c, accept));
-        start->transitions.emplace_back(transition(accept)); // ε-transition
+        start->transitions.emplace_back(c, accept);
+        start->transitions.emplace_back(accept); // ε-transition
 
         return {start, accept};
     }
 
     // Character Classes: [a-z], [^a-z], [abc]
-    nfa build_character_class(const std::string &input) {
+    static nfa build_character_class(const std::string &input) {
         bool is_negated = input[0] == '^';
         std::unordered_set<char> char_set;
 
@@ -149,7 +151,7 @@ public:
 
         auto start = std::make_shared<state>();
         auto accept = std::make_shared<state>(true);
-        start->transitions.emplace_back(transition(char_set, accept, is_negated));
+        start->transitions.emplace_back(char_set, accept, is_negated);
 
         return {start, accept};
     }
@@ -158,7 +160,7 @@ public:
 // NFA Processor
 class nfa_processor {
 public:
-    bool execute(const nfa &nfa, const std::string &input) {
+    static bool execute(const nfa &nfa, const std::string &input) {
         std::queue<std::pair<std::shared_ptr<state>, size_t>> to_process;
         std::unordered_set<std::pair<std::shared_ptr<state>, size_t>, pair_hash> visited;
 
@@ -223,8 +225,7 @@ void visualize_nfa_dot(const nfa &nfa, std::ostream &out) {
 }
 
 TEST(NFA_Builder_Test, Build_Concatenation) {
-    nfa_builder builder;
-    nfa nfa = builder.build_concatenation("ab");
+    nfa nfa = nfa_builder::build_concatenation("ab");
 
     visualize_nfa_dot(nfa, std::cout);
 
@@ -246,8 +247,7 @@ TEST(NFA_Builder_Test, Build_Concatenation) {
 }
 
 TEST(NFA_Builder_Test, Build_ZeroOrMore) {
-    nfa_builder builder;
-    nfa nfa = builder.build_zero_or_more('a');
+    nfa nfa = nfa_builder::build_zero_or_more('a');
 
     visualize_nfa_dot(nfa, std::cout);
 
@@ -271,8 +271,7 @@ TEST(NFA_Builder_Test, Build_ZeroOrMore) {
 }
 
 TEST(NFA_Builder_Test, Build_OneOrMore) {
-    nfa_builder builder;
-    nfa nfa = builder.build_one_or_more('a');
+    nfa nfa = nfa_builder::build_one_or_more('a');
 
     visualize_nfa_dot(nfa, std::cout);
 
@@ -295,8 +294,7 @@ TEST(NFA_Builder_Test, Build_OneOrMore) {
 }
 
 TEST(NFA_Builder_Test, Build_Optionality) {
-    nfa_builder builder;
-    nfa nfa = builder.build_optionality('a');
+    nfa nfa = nfa_builder::build_optionality('a');
 
     visualize_nfa_dot(nfa, std::cout);
 
@@ -306,20 +304,18 @@ TEST(NFA_Builder_Test, Build_Optionality) {
 
 
 TEST(NFA_Processor_Test, Execute_Concatenation) {
-    nfa_builder builder;
     nfa_processor processor;
 
-    nfa nfa = builder.build_concatenation("ab");
+    nfa nfa = nfa_builder::build_concatenation("ab");
     EXPECT_TRUE(processor.execute(nfa, "ab"));
     EXPECT_FALSE(processor.execute(nfa, "a"));
     EXPECT_FALSE(processor.execute(nfa, "abc"));
 }
 
 TEST(NFA_Processor_Test, Execute_ZeroOrMore) {
-    nfa_builder builder;
     nfa_processor processor;
 
-    nfa nfa = builder.build_zero_or_more('a');
+    nfa nfa = nfa_builder::build_zero_or_more('a');
     EXPECT_TRUE(processor.execute(nfa, ""));
     EXPECT_TRUE(processor.execute(nfa, "a"));
     EXPECT_TRUE(processor.execute(nfa, "aaaa"));
@@ -327,10 +323,9 @@ TEST(NFA_Processor_Test, Execute_ZeroOrMore) {
 }
 
 TEST(NFA_Processor_Test, Execute_OneOrMore) {
-    nfa_builder builder;
     nfa_processor processor;
 
-    nfa nfa = builder.build_one_or_more('a');
+    nfa nfa = nfa_builder::build_one_or_more('a');
     EXPECT_FALSE(processor.execute(nfa, ""));
     EXPECT_TRUE(processor.execute(nfa, "a"));
     EXPECT_TRUE(processor.execute(nfa, "aaaa"));
@@ -338,10 +333,9 @@ TEST(NFA_Processor_Test, Execute_OneOrMore) {
 }
 
 TEST(NFA_Processor_Test, Execute_Optionality) {
-    nfa_builder builder;
     nfa_processor processor;
 
-    nfa nfa = builder.build_optionality('a');
+    nfa nfa = nfa_builder::build_optionality('a');
     EXPECT_TRUE(processor.execute(nfa, ""));
     EXPECT_TRUE(processor.execute(nfa, "a"));
     EXPECT_FALSE(processor.execute(nfa, "aa"));
@@ -350,10 +344,9 @@ TEST(NFA_Processor_Test, Execute_Optionality) {
 
 
 TEST(NFA_Builder_Test, Build_CharacterClass_Range) {
-    nfa_builder builder;
     nfa_processor processor;
 
-    nfa nfa = builder.build_character_class("a-z");
+    nfa nfa = nfa_builder::build_character_class("a-z");
     EXPECT_TRUE(processor.execute(nfa, "a"));
     EXPECT_TRUE(processor.execute(nfa, "m"));
     EXPECT_TRUE(processor.execute(nfa, "z"));
@@ -362,10 +355,9 @@ TEST(NFA_Builder_Test, Build_CharacterClass_Range) {
 }
 
 TEST(NFA_Builder_Test, Build_CharacterClass_Explicit) {
-    nfa_builder builder;
     nfa_processor processor;
 
-    nfa nfa = builder.build_character_class("abc");
+    nfa nfa = nfa_builder::build_character_class("abc");
     std::stringstream ss;
     visualize_nfa_dot(nfa, ss);
     std::cout << ss.str();
@@ -378,10 +370,9 @@ TEST(NFA_Builder_Test, Build_CharacterClass_Explicit) {
 }
 
 TEST(NFA_Builder_Test, Build_CharacterClass_NegatedRange) {
-    nfa_builder builder;
     nfa_processor processor;
 
-    nfa nfa = builder.build_character_class("^a-z");
+    nfa nfa = nfa_builder::build_character_class("^a-z");
 
     visualize_nfa_dot(nfa, std::cout);
 
@@ -394,10 +385,9 @@ TEST(NFA_Builder_Test, Build_CharacterClass_NegatedRange) {
 }
 
 TEST(NFA_Builder_Test, Build_CharacterClass_NegatedExplicit) {
-    nfa_builder builder;
     nfa_processor processor;
 
-    nfa nfa = builder.build_character_class("^abc");
+    nfa nfa = nfa_builder::build_character_class("^abc");
     visualize_nfa_dot(nfa, std::cout);
 
     EXPECT_TRUE(processor.execute(nfa, "d"));
