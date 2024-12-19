@@ -71,11 +71,26 @@ struct nfa {
     std::shared_ptr<state> accept;
 };
 
+//
+struct BuildResult {
+    nfa automaton;
+    std::unordered_map<std::string, int> named_groups;
+};
+
 // NFA Builder
 class nfa_builder {
     int group_counter = 1; // Start group numbering from 1
+    mutable std::unordered_map<std::string, int> named_groups;
 
 public:
+    const std::unordered_map<std::string, int> &get_named_groups() const {
+        return named_groups;
+    }
+
+    BuildResult complete(const nfa &input_nfa) {
+        return {input_nfa, named_groups};
+    }
+
     // Single Character NFA
     nfa build_literal(char c) const {
         const auto start = std::make_shared<state>();
@@ -181,11 +196,15 @@ public:
         return build_character_class(char_set, is_negated);
     }
 
-    nfa build_group(const nfa &input_nfa) {
+    nfa build_group(const nfa &input_nfa, const std::string &name = "") {
         const int group_index = group_counter++; // Assign a group number
 
         input_nfa.start->group_start_index = group_index;
         input_nfa.accept->group_end_index = group_index;
+
+        if (!name.empty()) {
+            named_groups[name] = group_index; // Map group name to index
+        }
 
         return input_nfa;
     }
@@ -200,18 +219,13 @@ public:
 struct execute_results {
     bool matched = false;
     std::vector<std::string> groups;
+    std::unordered_map<std::string, std::string> named_groups; // Named group matches
 };
 
 // NFA Processor
 class nfa_processor {
 public:
-    static execute_results run(const nfa &nfa, const std::string &input, bool debug = false) {
-        auto [matched, captured_groups] = execute_with_groups(nfa, input, debug);
-        return execute_results(matched, captured_groups);
-    }
-
-    static std::tuple<bool, std::vector<std::string> >
-    execute_with_groups(const nfa &nfa, const std::string &input, bool debug = false) {
+    static execute_results run(const nfa &nfa, const std::string &input) {
         std::queue<std::tuple<std::shared_ptr<state>, size_t, std::stack<std::pair<size_t, int> >, std::vector<
             std::string> > > to_process;
         std::unordered_set<std::pair<std::shared_ptr<state>, size_t>, pair_hash> visited;
@@ -229,7 +243,7 @@ public:
 
             if (current->is_accept && pos == input.size()) {
                 captures[0] = input; // Full match at Group 0
-                return {true, captures};
+                return {true, captures, {}};
             }
 
             for (const auto &t: current->transitions) {
@@ -262,9 +276,127 @@ public:
             }
         }
 
-        return {false, {}};
+        return {false, {}, {}};
     }
 
+    static execute_results run(const nfa &nfa, const std::string &input,
+                               const std::unordered_map<std::string, int> &named_groups) {
+        std::queue<std::tuple<std::shared_ptr<state>, size_t, std::stack<std::pair<size_t, int> >, std::vector<
+                    std::string> > >
+                to_process;
+        std::unordered_set<std::pair<std::shared_ptr<state>, size_t>, pair_hash> visited;
+
+        std::vector<std::string> captured_groups(1); // Group 0 (whole match)
+        std::stack<std::pair<size_t, int> > group_stack;
+
+        to_process.emplace(nfa.start, 0, group_stack, captured_groups);
+
+        while (!to_process.empty()) {
+            auto [current, pos, groups, captures] = to_process.front();
+            to_process.pop();
+
+            if (!visited.insert({current, pos}).second) continue;
+
+            if (current->is_accept && pos == input.size()) {
+                captures[0] = input;
+                std::unordered_map<std::string, std::string> named_captures;
+
+                // Populate named captures
+                for (const auto &[name, index]: named_groups) {
+                    if (index < captures.size()) {
+                        named_captures[name] = captures[index];
+                    }
+                }
+                return {true, captures, named_captures};
+            }
+
+            for (const auto &t: current->transitions) {
+                auto new_groups = groups;
+                auto new_captures = captures;
+
+                if (current->group_start_index != -1) {
+                    new_groups.emplace(pos, current->group_start_index);
+                }
+                if (current->group_end_index != -1 && !new_groups.empty()) {
+                    auto [start_pos, group_index] = new_groups.top();
+                    new_groups.pop();
+
+                    if (new_captures.size() <= group_index) {
+                        new_captures.resize(group_index + 1);
+                    }
+                    new_captures[group_index] = input.substr(start_pos, pos - start_pos);
+                }
+
+                if (t.type == EPSILON) {
+                    to_process.emplace(t.target, pos, new_groups, new_captures);
+                } else if (pos < input.size() && t.matches(input[pos])) {
+                    to_process.emplace(t.target, pos + 1, new_groups, new_captures);
+                }
+            }
+        }
+
+        return {false, {}, {}};
+    }
+
+    static execute_results run(const BuildResult &result, const std::string &input) {
+    const auto &automaton = result.automaton;
+    const auto &named_groups = result.named_groups;
+
+    // Same logic as before, but using result.named_groups
+    std::queue<std::tuple<std::shared_ptr<state>, size_t, std::stack<std::pair<size_t, int>>, std::vector<std::string>>>
+        to_process;
+    std::unordered_set<std::pair<std::shared_ptr<state>, size_t>, pair_hash> visited;
+
+    std::vector<std::string> captured_groups(1); // Group 0 (whole match)
+    std::stack<std::pair<size_t, int>> group_stack;
+
+    to_process.emplace(automaton.start, 0, group_stack, captured_groups);
+
+    while (!to_process.empty()) {
+        auto [current, pos, groups, captures] = to_process.front();
+        to_process.pop();
+
+        if (!visited.insert({current, pos}).second) continue;
+
+        if (current->is_accept && pos == input.size()) {
+            captures[0] = input;
+            std::unordered_map<std::string, std::string> named_captures;
+
+            for (const auto &[name, index] : named_groups) {
+                if (index < captures.size()) {
+                    named_captures[name] = captures[index];
+                }
+            }
+            return {true, captures, named_captures};
+        }
+
+        for (const auto &t : current->transitions) {
+            auto new_groups = groups;
+            auto new_captures = captures;
+
+            if (current->group_start_index != -1) {
+                new_groups.emplace(pos, current->group_start_index);
+            }
+            if (current->group_end_index != -1 && !new_groups.empty()) {
+                auto [start_pos, group_index] = new_groups.top();
+                new_groups.pop();
+
+                if (new_captures.size() <= group_index) {
+                    new_captures.resize(group_index + 1);
+                }
+                new_captures[group_index] = input.substr(start_pos, pos - start_pos);
+            }
+
+            if (t.type == EPSILON) {
+                to_process.emplace(t.target, pos, new_groups, new_captures);
+            } else if (pos < input.size() && t.matches(input[pos])) {
+                to_process.emplace(t.target, pos + 1, new_groups, new_captures);
+            }
+        }
+    }
+
+    return {false, {}, {}};
+}
 private:
     struct pair_hash {
         template<class T1, class T2>
@@ -307,7 +439,7 @@ void visualize_nfa_dot(const nfa &nfa, std::ostream &out) {
 }
 
 TEST(NFA_Builder_Test, Build_Concatenation) {
-    constexpr nfa_builder builder;
+    nfa_builder builder;
     const nfa nfa = builder.build_concatenation("ab");
     nfa_processor processor;
 
@@ -320,7 +452,7 @@ TEST(NFA_Builder_Test, Build_Concatenation) {
 }
 
 TEST(NFA_Builder_Test, Build_ZeroOrMore) {
-    constexpr nfa_builder builder;
+    nfa_builder builder;
     const nfa nfa = builder.build_zero_or_more(builder.build_literal('a'));
     nfa_processor processor;
 
@@ -332,7 +464,7 @@ TEST(NFA_Builder_Test, Build_ZeroOrMore) {
 }
 
 TEST(NFA_Builder_Test, Build_OneOrMore) {
-    constexpr nfa_builder builder;
+    nfa_builder builder;
     const nfa nfa = builder.build_one_or_more('a');
     nfa_processor processor;
 
@@ -344,7 +476,7 @@ TEST(NFA_Builder_Test, Build_OneOrMore) {
 }
 
 TEST(NFA_Builder_Test, Build_Optionality) {
-    constexpr nfa_builder builder;
+    nfa_builder builder;
     const nfa nfa = builder.build_optionality(builder.build_literal('a'));
     nfa_processor processor;
 
@@ -355,7 +487,7 @@ TEST(NFA_Builder_Test, Build_Optionality) {
 }
 
 TEST(NFA_Builder_Test, Build_CharacterClass_Range) {
-    constexpr nfa_builder builder;
+    nfa_builder builder;
     const nfa nfa = builder.build_character_class("a-z");
     nfa_processor processor;
 
@@ -367,7 +499,7 @@ TEST(NFA_Builder_Test, Build_CharacterClass_Range) {
 }
 
 TEST(NFA_Builder_Test, Build_CharacterClass_Explicit) {
-    constexpr nfa_builder builder;
+    nfa_builder builder;
     const nfa nfa = builder.build_character_class("abc");
     nfa_processor processor;
 
@@ -379,7 +511,7 @@ TEST(NFA_Builder_Test, Build_CharacterClass_Explicit) {
 }
 
 TEST(NFA_Builder_Test, Build_CharacterClass_NegatedRange) {
-    constexpr nfa_builder builder;
+    nfa_builder builder;
     const nfa nfa = builder.build_character_class("^a-z");
     nfa_processor processor;
 
@@ -392,7 +524,7 @@ TEST(NFA_Builder_Test, Build_CharacterClass_NegatedRange) {
 }
 
 TEST(NFA_Builder_Test, Build_CharacterClass_NegatedExplicit) {
-    constexpr nfa_builder builder;
+    nfa_builder builder;
     const nfa nfa = builder.build_character_class("^abc");
     nfa_processor processor;
 
@@ -414,37 +546,58 @@ TEST(NFA_Processor_Test, Execute_With_Groups_Single_Test) {
     visualize_nfa_dot(nfa, std::cout);
 
     // Execute NFA
-    auto [matched, captured_groups] = nfa_processor::execute_with_groups(nfa, "ababab", true);
+    auto [matched, captured_groups, ignore] = nfa_processor::run(nfa, "ababab");
 
     // Assertions
     EXPECT_TRUE(matched);
-    EXPECT_EQ(captured_groups.size(), 2);    // Group 0 (whole match) + Group 1 (last group match)
+    EXPECT_EQ(captured_groups.size(), 2); // Group 0 (whole match) + Group 1 (last group match)
     EXPECT_EQ(captured_groups[0], "ababab"); // Whole match
-    EXPECT_EQ(captured_groups[1], "ab");     // Last group match
+    EXPECT_EQ(captured_groups[1], "ab"); // Last group match
 }
 
 TEST(NFA_Builder_Test, Build_NonCapturingGroup) {
-    constexpr nfa_builder builder;
+    nfa_builder builder;
 
     // Build an NFA for (?:ab)+ -> Non-capturing group repeated one or more times
     const nfa group_nfa = builder.build_non_capturing_group(
         builder.build_concatenation(builder.build_literal('a'), builder.build_literal('b'))
     );
-    const nfa repeated_nfa = builder.build_one_or_more(group_nfa);
+    const nfa nfa = builder.build_one_or_more(group_nfa);
 
     nfa_processor processor;
 
     // Test valid inputs
-    EXPECT_TRUE(processor.run(repeated_nfa, "ab").matched);       // Single occurrence
-    EXPECT_TRUE(processor.run(repeated_nfa, "abab").matched);     // Two occurrences
-    EXPECT_TRUE(processor.run(repeated_nfa, "ababab").matched);   // Multiple occurrences
+    EXPECT_TRUE(processor.run(nfa, "ab").matched); // Single occurrence
+    EXPECT_TRUE(processor.run(nfa, "abab").matched); // Two occurrences
+    EXPECT_TRUE(processor.run(nfa, "ababab").matched); // Multiple occurrences
 
     // Test invalid inputs
-    EXPECT_FALSE(processor.run(repeated_nfa, "").matched);        // Zero occurrences
-    EXPECT_FALSE(processor.run(repeated_nfa, "a").matched);       // Incomplete match
-    EXPECT_FALSE(processor.run(repeated_nfa, "b").matched);       // Invalid start
-    EXPECT_FALSE(processor.run(repeated_nfa, "abx").matched);     // Ends with invalid character
-    EXPECT_FALSE(processor.run(repeated_nfa, "ababx").matched);   // Ends with invalid character
+    EXPECT_FALSE(processor.run(nfa, "").matched); // Zero occurrences
+    EXPECT_FALSE(processor.run(nfa, "a").matched); // Incomplete match
+    EXPECT_FALSE(processor.run(nfa, "b").matched); // Invalid start
+    EXPECT_FALSE(processor.run(nfa, "abx").matched); // Ends with invalid character
+    EXPECT_FALSE(processor.run(nfa, "ababx").matched); // Ends with invalid character
+}
+
+TEST(NFA_Processor_Test, Execute_With_Named_Groups) {
+    nfa_builder builder;
+
+    // Build NFA for (?<word>ab)+
+    const nfa group_nfa = builder.build_group(
+        builder.build_concatenation(builder.build_literal('a'), builder.build_literal('b')),
+        "word"
+    );
+    const nfa repeated_group = builder.build_zero_or_more(group_nfa);
+
+    // Retrieve named groups from the builder
+    const auto &named_groups = builder.get_named_groups();
+
+    // Execute NFA
+    auto [matched, captured_groups, named_captures] = nfa_processor::run(repeated_group, "ababab", named_groups);
+
+    // Assertions
+    EXPECT_TRUE(matched);
+    EXPECT_EQ(named_captures["word"], "ab"); // Last match for the named group
 }
 
 int main(int argc, char **argv) {
