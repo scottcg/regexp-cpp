@@ -196,65 +196,7 @@ public:
 class nfa_processor {
 public:
     static bool execute(const nfa &nfa, const std::string &input, bool debug = false) {
-        std::queue<std::pair<std::shared_ptr<state>, size_t> > to_process;
-        std::unordered_set<std::pair<std::shared_ptr<state>, size_t>, pair_hash> visited;
-
-        to_process.emplace(nfa.start, 0);
-
-        if (debug) {
-            std::cout << "Starting NFA Execution\n";
-            std::cout << "Input: \"" << input << "\"\n";
-        }
-
-        while (!to_process.empty()) {
-            auto [current, pos] = to_process.front();
-            to_process.pop();
-
-            if (debug) {
-                std::cout << "Current State: " << current->id
-                        << " | Input Position: " << pos
-                        << " | Accept State: " << (current->is_accept ? "YES" : "NO") << "\n";
-            }
-
-            // Check for success
-            if (current->is_accept && pos == input.size()) {
-                if (debug) {
-                    std::cout << "Matched: Reached accepting state with all input consumed.\n";
-                }
-                return true;
-            }
-
-            // Check if this state and position have already been visited
-            if (!visited.insert({current, pos}).second) {
-                if (debug) {
-                    std::cout << "State " << current->id << " at position " << pos << " already visited. Skipping.\n";
-                }
-                continue;
-            }
-
-            // Explore transitions
-            for (const auto &t: current->transitions) {
-                if (t.type == EPSILON) {
-                    if (debug) {
-                        std::cout << "  Transition: ε -> State " << t.target->id << "\n";
-                    }
-                    to_process.emplace(t.target, pos);
-                } else if (pos < input.size() && t.matches(input[pos])) {
-                    if (debug) {
-                        std::cout << "  Transition: '" << input[pos] << "' -> State " << t.target->id << "\n";
-                    }
-                    to_process.emplace(t.target, pos + 1);
-                } else if (debug) {
-                    std::cout << "  No transition for input '" << input[pos] << "' at State " << current->id << "\n";
-                }
-            }
-        }
-
-        if (debug) {
-            std::cout << "Failed: No valid path to an accept state.\n";
-        }
-
-        return false;
+        return std::get<0>(execute_with_groups(nfa, input, debug));
     }
 
     static std::tuple<bool, std::vector<std::string> >
