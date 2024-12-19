@@ -8,14 +8,6 @@
 #include <sstream>
 #include <gtest/gtest.h>
 
-enum state_type {
-    NORMAL,          // Regular transition
-    LOOKAHEAD_POS,   // Positive Lookahead
-    LOOKAHEAD_NEG,   // Negative Lookahead
-    BEGIN_GROUP,     // Start of a group
-    END_GROUP,       // End of a group
-    BACK_REFERENCE   // Back-reference to a group
-};
 
 enum transition_type {
     EPSILON,          // ε-transition
@@ -61,7 +53,6 @@ struct state {
     static int next_id;
     int id;
     bool is_accept = false;
-    state_type type = NORMAL;
     std::vector<transition> transitions;
 
     explicit state(bool is_accept = false) : id(next_id++), is_accept(is_accept) {}
@@ -79,7 +70,7 @@ struct nfa {
 class nfa_builder {
 public:
     // Single Character NFA
-    static nfa build_single_character(char c) {
+    nfa build_single_character(char c) const {
         auto start = std::make_shared<state>();
         auto accept = std::make_shared<state>(true);
         start->transitions.emplace_back(c, accept);
@@ -87,14 +78,14 @@ public:
     }
 
     // Generalized Concatenation: Combine two NFAs
-    static nfa build_concatenation(const nfa &nfa1, const nfa &nfa2) {
+    nfa build_concatenation(const nfa &nfa1, const nfa &nfa2) const {
         nfa1.accept->is_accept = false;  // Remove accept status from first NFA
         nfa1.accept->transitions.emplace_back(nfa2.start); // Link first NFA to second NFA
         return {nfa1.start, nfa2.accept};
     }
 
     // Character-based Concatenation: Forward to generalized method
-    static nfa build_concatenation(const std::string &input) {
+    nfa build_concatenation(const std::string &input) const {
         if (input.empty()) throw std::invalid_argument("Empty input for concatenation.");
 
         nfa result = build_single_character(input[0]);
@@ -105,7 +96,7 @@ public:
     }
 
     // Generalized Zero or More: Kleene Star
-    static nfa build_zero_or_more(const nfa &input_nfa) {
+    nfa build_zero_or_more(const nfa &input_nfa) const {
         auto start = std::make_shared<state>();
         auto accept = std::make_shared<state>(true);
 
@@ -120,12 +111,12 @@ public:
     }
 
     // Character-based Zero or More: Forward to generalized method
-    static nfa build_zero_or_more(char c) {
+    nfa build_zero_or_more(char c) const {
         return build_zero_or_more(build_single_character(c));
     }
 
     // Generalized One or More
-    static nfa build_one_or_more(const nfa &input_nfa) {
+    nfa build_one_or_more(const nfa &input_nfa) const {
         auto start = std::make_shared<state>();
         auto accept = std::make_shared<state>(true);
 
@@ -139,12 +130,12 @@ public:
     }
 
     // Character-based One or More: Forward to generalized method
-    static nfa build_one_or_more(char c) {
+    nfa build_one_or_more(char c) const {
         return build_one_or_more(build_single_character(c));
     }
 
     // Generalized Optionality
-    static nfa build_optionality(const nfa &input_nfa) {
+    nfa build_optionality(const nfa &input_nfa) const {
         auto start = std::make_shared<state>();
         auto accept = std::make_shared<state>(true);
 
@@ -158,12 +149,12 @@ public:
     }
 
     // Character-based Optionality: Forward to generalized method
-    static nfa build_optionality(char c) {
+    nfa build_optionality(char c) const {
         return build_optionality(build_single_character(c));
     }
 
     // Generalized Character Class
-    static nfa build_character_class(const std::unordered_set<char> &char_set, bool negated = false) {
+    nfa build_character_class(const std::unordered_set<char> &char_set, bool negated = false) const {
         auto start = std::make_shared<state>();
         auto accept = std::make_shared<state>(true);
         start->transitions.emplace_back(char_set, accept, negated);
@@ -171,7 +162,7 @@ public:
     }
 
     // String-based Character Class
-    static nfa build_character_class(const std::string &input) {
+    nfa build_character_class(const std::string &input) const {
         bool is_negated = input[0] == '^';
         std::unordered_set<char> char_set;
 
@@ -293,7 +284,8 @@ void visualize_nfa_dot(const nfa &nfa, std::ostream &out) {
 }
 
 TEST(NFA_Builder_Test, Build_Concatenation) {
-    nfa nfa = nfa_builder::build_concatenation("ab");
+    nfa_builder builder;
+    nfa nfa = builder.build_concatenation("ab");
     nfa_processor processor;
 
     EXPECT_TRUE(processor.execute(nfa, "ab"));
@@ -303,7 +295,8 @@ TEST(NFA_Builder_Test, Build_Concatenation) {
 }
 
 TEST(NFA_Builder_Test, Build_ZeroOrMore) {
-    nfa nfa = nfa_builder::build_zero_or_more('a');
+    nfa_builder builder;
+    nfa nfa = builder.build_zero_or_more('a');
     nfa_processor processor;
 
     EXPECT_TRUE(processor.execute(nfa, ""));       // Zero occurrences
@@ -314,7 +307,8 @@ TEST(NFA_Builder_Test, Build_ZeroOrMore) {
 }
 
 TEST(NFA_Builder_Test, Build_OneOrMore) {
-    nfa nfa = nfa_builder::build_one_or_more('a');
+    nfa_builder builder;
+    nfa nfa = builder.build_one_or_more('a');
     nfa_processor processor;
 
     EXPECT_FALSE(processor.execute(nfa, ""));      // Zero occurrences
@@ -325,7 +319,8 @@ TEST(NFA_Builder_Test, Build_OneOrMore) {
 }
 
 TEST(NFA_Builder_Test, Build_Optionality) {
-    nfa nfa = nfa_builder::build_optionality('a');
+    nfa_builder builder;
+    nfa nfa = builder.build_optionality('a');
     nfa_processor processor;
 
     EXPECT_TRUE(processor.execute(nfa, ""));       // Zero occurrences
@@ -335,7 +330,8 @@ TEST(NFA_Builder_Test, Build_Optionality) {
 }
 
 TEST(NFA_Builder_Test, Build_CharacterClass_Range) {
-    nfa nfa = nfa_builder::build_character_class("a-z");
+    nfa_builder builder;
+    nfa nfa = builder.build_character_class("a-z");
     nfa_processor processor;
 
     EXPECT_TRUE(processor.execute(nfa, "a"));      // Lower boundary
@@ -346,7 +342,8 @@ TEST(NFA_Builder_Test, Build_CharacterClass_Range) {
 }
 
 TEST(NFA_Builder_Test, Build_CharacterClass_Explicit) {
-    nfa nfa = nfa_builder::build_character_class("abc");
+    nfa_builder builder;
+    nfa nfa = builder.build_character_class("abc");
     nfa_processor processor;
 
     EXPECT_TRUE(processor.execute(nfa, "a"));      // Matches 'a'
@@ -357,7 +354,8 @@ TEST(NFA_Builder_Test, Build_CharacterClass_Explicit) {
 }
 
 TEST(NFA_Builder_Test, Build_CharacterClass_NegatedRange) {
-    nfa nfa = nfa_builder::build_character_class("^a-z");
+    nfa_builder builder;
+    nfa nfa = builder.build_character_class("^a-z");
     nfa_processor processor;
 
     EXPECT_TRUE(processor.execute(nfa, "A"));      // Uppercase letter
@@ -369,7 +367,8 @@ TEST(NFA_Builder_Test, Build_CharacterClass_NegatedRange) {
 }
 
 TEST(NFA_Builder_Test, Build_CharacterClass_NegatedExplicit) {
-    nfa nfa = nfa_builder::build_character_class("^abc");
+    nfa_builder builder;
+    nfa nfa = builder.build_character_class("^abc");
     nfa_processor processor;
 
     EXPECT_TRUE(processor.execute(nfa, "d"));      // Outside explicit set
