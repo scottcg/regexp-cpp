@@ -65,19 +65,19 @@ struct state {
 
 int state::next_id = 0;
 
-// NFA structure
+
 struct nfa {
     std::shared_ptr<state> start;
     std::shared_ptr<state> accept;
 };
 
-//
+
 struct build_result {
     nfa automaton;
     std::unordered_map<std::string, int> named_groups;
 };
 
-// NFA Builder
+
 class nfa_builder {
     int group_counter = 1; // Start group numbering from 1
     mutable std::unordered_map<std::string, int> named_groups;
