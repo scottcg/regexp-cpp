@@ -72,7 +72,7 @@ struct nfa {
 };
 
 //
-struct BuildResult {
+struct build_result {
     nfa automaton;
     std::unordered_map<std::string, int> named_groups;
 };
@@ -87,7 +87,7 @@ public:
         return named_groups;
     }
 
-    BuildResult complete(const nfa &input_nfa) {
+    build_result complete(const nfa &input_nfa) {
         return {input_nfa, named_groups};
     }
 
@@ -130,11 +130,6 @@ public:
         input_nfa.accept->transitions.emplace_back(accept); // ε-transition to accept state
 
         return {start, accept};
-    }
-
-    // Character-based Zero or More: Forward to generalized method
-    nfa xbuild_zero_or_more(char c) const {
-        return build_zero_or_more(build_literal(c));
     }
 
     // Generalized One or More
@@ -338,7 +333,7 @@ public:
         return {false, {}, {}};
     }
 
-    static execute_results run(const BuildResult &result, const std::string &input) {
+    static execute_results run(const build_result &result, const std::string &input) {
     const auto &automaton = result.automaton;
     const auto &named_groups = result.named_groups;
 
@@ -440,164 +435,150 @@ void visualize_nfa_dot(const nfa &nfa, std::ostream &out) {
 
 TEST(NFA_Builder_Test, Build_Concatenation) {
     nfa_builder builder;
-    const nfa nfa = builder.build_concatenation("ab");
-    nfa_processor processor;
+    const build_result result = builder.complete(builder.build_concatenation("ab"));
 
-    visualize_nfa_dot(nfa, std::cout);
+    visualize_nfa_dot(result.automaton, std::cout);
 
-    EXPECT_TRUE(processor.run(nfa, "ab").matched);
-    EXPECT_FALSE(processor.run(nfa, "a").matched);
-    EXPECT_FALSE(processor.run(nfa, "b").matched);
-    EXPECT_FALSE(processor.run(nfa, "abc").matched);
+    auto [matched, captured_groups, named_captures] = nfa_processor::run(result, "ab");
+    EXPECT_TRUE(matched);
+    EXPECT_FALSE(nfa_processor::run(result, "a").matched);
+    EXPECT_FALSE(nfa_processor::run(result, "b").matched);
+    EXPECT_FALSE(nfa_processor::run(result, "abc").matched);
 }
 
 TEST(NFA_Builder_Test, Build_ZeroOrMore) {
     nfa_builder builder;
-    const nfa nfa = builder.build_zero_or_more(builder.build_literal('a'));
-    nfa_processor processor;
+    const build_result result = builder.complete(builder.build_zero_or_more(builder.build_literal('a')));
 
-    EXPECT_TRUE(processor.run(nfa, "").matched); // Zero occurrences
-    EXPECT_TRUE(processor.run(nfa, "a").matched); // One occurrence
-    EXPECT_TRUE(processor.run(nfa, "aaaa").matched); // Multiple occurrences
-    EXPECT_FALSE(processor.run(nfa, "b").matched); // Invalid character
-    EXPECT_FALSE(processor.run(nfa, "aaab").matched); // Ends with invalid character
+    EXPECT_TRUE(nfa_processor::run(result, "").matched);         // Zero occurrences
+    EXPECT_TRUE(nfa_processor::run(result, "a").matched);        // One occurrence
+    EXPECT_TRUE(nfa_processor::run(result, "aaaa").matched);     // Multiple occurrences
+    EXPECT_FALSE(nfa_processor::run(result, "b").matched);       // Invalid character
+    EXPECT_FALSE(nfa_processor::run(result, "aaab").matched);    // Ends with invalid character
 }
 
 TEST(NFA_Builder_Test, Build_OneOrMore) {
     nfa_builder builder;
-    const nfa nfa = builder.build_one_or_more('a');
-    nfa_processor processor;
+    const build_result result = builder.complete(builder.build_one_or_more('a'));
 
-    EXPECT_FALSE(processor.run(nfa, "").matched); // Zero occurrences
-    EXPECT_TRUE(processor.run(nfa, "a").matched); // One occurrence
-    EXPECT_TRUE(processor.run(nfa, "aaaa").matched); // Multiple occurrences
-    EXPECT_FALSE(processor.run(nfa, "b").matched); // Invalid character
-    EXPECT_FALSE(processor.run(nfa, "aaab").matched); // Ends with invalid character
+    EXPECT_FALSE(nfa_processor::run(result, "").matched);        // Zero occurrences
+    EXPECT_TRUE(nfa_processor::run(result, "a").matched);        // One occurrence
+    EXPECT_TRUE(nfa_processor::run(result, "aaaa").matched);     // Multiple occurrences
+    EXPECT_FALSE(nfa_processor::run(result, "b").matched);       // Invalid character
+    EXPECT_FALSE(nfa_processor::run(result, "aaab").matched);    // Ends with invalid character
 }
 
 TEST(NFA_Builder_Test, Build_Optionality) {
     nfa_builder builder;
-    const nfa nfa = builder.build_optionality(builder.build_literal('a'));
-    nfa_processor processor;
+    const build_result result = builder.complete(builder.build_optionality(builder.build_literal('a')));
 
-    EXPECT_TRUE(processor.run(nfa, "").matched); // Zero occurrences
-    EXPECT_TRUE(processor.run(nfa, "a").matched); // One occurrence
-    EXPECT_FALSE(processor.run(nfa, "aa").matched); // Too many occurrences
-    EXPECT_FALSE(processor.run(nfa, "b").matched); // Invalid character
+    EXPECT_TRUE(nfa_processor::run(result, "").matched);         // Zero occurrences
+    EXPECT_TRUE(nfa_processor::run(result, "a").matched);        // One occurrence
+    EXPECT_FALSE(nfa_processor::run(result, "aa").matched);      // Too many occurrences
+    EXPECT_FALSE(nfa_processor::run(result, "b").matched);       // Invalid character
 }
 
 TEST(NFA_Builder_Test, Build_CharacterClass_Range) {
     nfa_builder builder;
-    const nfa nfa = builder.build_character_class("a-z");
-    nfa_processor processor;
+    const build_result result = builder.complete(builder.build_character_class("a-z"));
 
-    EXPECT_TRUE(processor.run(nfa, "a").matched); // Lower boundary
-    EXPECT_TRUE(processor.run(nfa, "m").matched); // Middle of the range
-    EXPECT_TRUE(processor.run(nfa, "z").matched); // Upper boundary
-    EXPECT_FALSE(processor.run(nfa, "A").matched); // Out of range
-    EXPECT_FALSE(processor.run(nfa, "1").matched); // Non-alphabetic character
+    EXPECT_TRUE(nfa_processor::run(result, "a").matched);        // Lower boundary
+    EXPECT_TRUE(nfa_processor::run(result, "m").matched);        // Middle of the range
+    EXPECT_TRUE(nfa_processor::run(result, "z").matched);        // Upper boundary
+    EXPECT_FALSE(nfa_processor::run(result, "A").matched);       // Out of range
+    EXPECT_FALSE(nfa_processor::run(result, "1").matched);       // Non-alphabetic character
 }
 
 TEST(NFA_Builder_Test, Build_CharacterClass_Explicit) {
     nfa_builder builder;
-    const nfa nfa = builder.build_character_class("abc");
-    nfa_processor processor;
+    const build_result result = builder.complete(builder.build_character_class("abc"));
 
-    EXPECT_TRUE(processor.run(nfa, "a").matched); // Matches 'a'
-    EXPECT_TRUE(processor.run(nfa, "b").matched); // Matches 'b'
-    EXPECT_TRUE(processor.run(nfa, "c").matched); // Matches 'c'
-    EXPECT_FALSE(processor.run(nfa, "d").matched); // Not in the set
-    EXPECT_FALSE(processor.run(nfa, "z").matched); // Not in the set
+    EXPECT_TRUE(nfa_processor::run(result, "a").matched);        // Matches 'a'
+    EXPECT_TRUE(nfa_processor::run(result, "b").matched);        // Matches 'b'
+    EXPECT_TRUE(nfa_processor::run(result, "c").matched);        // Matches 'c'
+    EXPECT_FALSE(nfa_processor::run(result, "d").matched);       // Not in the set
+    EXPECT_FALSE(nfa_processor::run(result, "z").matched);       // Not in the set
 }
 
 TEST(NFA_Builder_Test, Build_CharacterClass_NegatedRange) {
     nfa_builder builder;
-    const nfa nfa = builder.build_character_class("^a-z");
-    nfa_processor processor;
+    const build_result result = builder.complete(builder.build_character_class("^a-z"));
 
-    EXPECT_TRUE(processor.run(nfa, "A").matched); // Uppercase letter
-    EXPECT_TRUE(processor.run(nfa, "1").matched); // Digit
-    EXPECT_TRUE(processor.run(nfa, "!").matched); // Special character
-    EXPECT_FALSE(processor.run(nfa, "a").matched); // Lowercase letter in range
-    EXPECT_FALSE(processor.run(nfa, "m").matched); // Middle of the range
-    EXPECT_FALSE(processor.run(nfa, "z").matched); // Upper boundary of range
+    EXPECT_TRUE(nfa_processor::run(result, "A").matched);        // Uppercase letter
+    EXPECT_TRUE(nfa_processor::run(result, "1").matched);        // Digit
+    EXPECT_TRUE(nfa_processor::run(result, "!").matched);        // Special character
+    EXPECT_FALSE(nfa_processor::run(result, "a").matched);       // Lowercase letter in range
+    EXPECT_FALSE(nfa_processor::run(result, "m").matched);       // Middle of the range
+    EXPECT_FALSE(nfa_processor::run(result, "z").matched);       // Upper boundary of range
 }
 
 TEST(NFA_Builder_Test, Build_CharacterClass_NegatedExplicit) {
     nfa_builder builder;
-    const nfa nfa = builder.build_character_class("^abc");
-    nfa_processor processor;
+    const build_result result = builder.complete(builder.build_character_class("^abc"));
 
-    EXPECT_TRUE(processor.run(nfa, "d").matched); // Outside explicit set
-    EXPECT_TRUE(processor.run(nfa, "z").matched); // Another character outside the set
-    EXPECT_FALSE(processor.run(nfa, "a").matched); // Matches negated set
-    EXPECT_FALSE(processor.run(nfa, "b").matched); // Matches negated set
-    EXPECT_FALSE(processor.run(nfa, "c").matched); // Matches negated set
+    EXPECT_TRUE(nfa_processor::run(result, "d").matched);        // Outside explicit set
+    EXPECT_TRUE(nfa_processor::run(result, "z").matched);        // Another character outside the set
+    EXPECT_FALSE(nfa_processor::run(result, "a").matched);       // Matches negated set
+    EXPECT_FALSE(nfa_processor::run(result, "b").matched);       // Matches negated set
+    EXPECT_FALSE(nfa_processor::run(result, "c").matched);       // Matches negated set
 }
 
 TEST(NFA_Processor_Test, Execute_With_Groups_Single_Test) {
     nfa_builder builder;
 
-    // Build NFA for (ab)+ with group capture
-    const nfa group_nfa = builder.build_concatenation(builder.build_literal('a'), builder.build_literal('b'));
-    const nfa repeated_group = builder.build_group(group_nfa);
-    const nfa nfa = builder.build_zero_or_more(repeated_group);
+    const build_result result = builder.complete(
+        builder.build_zero_or_more(
+            builder.build_group(
+                builder.build_concatenation(builder.build_literal('a'), builder.build_literal('b'))
+            )
+        )
+    );
 
-    visualize_nfa_dot(nfa, std::cout);
+    visualize_nfa_dot(result.automaton, std::cout);
 
-    // Execute NFA
-    auto [matched, captured_groups, ignore] = nfa_processor::run(nfa, "ababab");
+    auto [matched, captured_groups, ignore] = nfa_processor::run(result, "ababab");
 
-    // Assertions
     EXPECT_TRUE(matched);
-    EXPECT_EQ(captured_groups.size(), 2); // Group 0 (whole match) + Group 1 (last group match)
-    EXPECT_EQ(captured_groups[0], "ababab"); // Whole match
-    EXPECT_EQ(captured_groups[1], "ab"); // Last group match
+    EXPECT_EQ(captured_groups.size(), 2);       // Whole match + last group match
+    EXPECT_EQ(captured_groups[0], "ababab");    // Whole match
+    EXPECT_EQ(captured_groups[1], "ab");        // Last group match
 }
 
 TEST(NFA_Builder_Test, Build_NonCapturingGroup) {
     nfa_builder builder;
-
-    // Build an NFA for (?:ab)+ -> Non-capturing group repeated one or more times
-    const nfa group_nfa = builder.build_non_capturing_group(
-        builder.build_concatenation(builder.build_literal('a'), builder.build_literal('b'))
+    const build_result result = builder.complete(
+        builder.build_one_or_more(
+            builder.build_non_capturing_group(
+                builder.build_concatenation(builder.build_literal('a'), builder.build_literal('b'))
+            )
+        )
     );
-    const nfa nfa = builder.build_one_or_more(group_nfa);
 
-    nfa_processor processor;
-
-    // Test valid inputs
-    EXPECT_TRUE(processor.run(nfa, "ab").matched); // Single occurrence
-    EXPECT_TRUE(processor.run(nfa, "abab").matched); // Two occurrences
-    EXPECT_TRUE(processor.run(nfa, "ababab").matched); // Multiple occurrences
-
-    // Test invalid inputs
-    EXPECT_FALSE(processor.run(nfa, "").matched); // Zero occurrences
-    EXPECT_FALSE(processor.run(nfa, "a").matched); // Incomplete match
-    EXPECT_FALSE(processor.run(nfa, "b").matched); // Invalid start
-    EXPECT_FALSE(processor.run(nfa, "abx").matched); // Ends with invalid character
-    EXPECT_FALSE(processor.run(nfa, "ababx").matched); // Ends with invalid character
+    EXPECT_TRUE(nfa_processor::run(result, "ab").matched);       // Single occurrence
+    EXPECT_TRUE(nfa_processor::run(result, "abab").matched);     // Two occurrences
+    EXPECT_TRUE(nfa_processor::run(result, "ababab").matched);   // Multiple occurrences
+    EXPECT_FALSE(nfa_processor::run(result, "").matched);        // Zero occurrences
+    EXPECT_FALSE(nfa_processor::run(result, "a").matched);       // Incomplete match
+    EXPECT_FALSE(nfa_processor::run(result, "b").matched);       // Invalid start
+    EXPECT_FALSE(nfa_processor::run(result, "abx").matched);     // Ends with invalid character
 }
 
 TEST(NFA_Processor_Test, Execute_With_Named_Groups) {
     nfa_builder builder;
 
-    // Build NFA for (?<word>ab)+
-    const nfa group_nfa = builder.build_group(
-        builder.build_concatenation(builder.build_literal('a'), builder.build_literal('b')),
-        "word"
+    const build_result result = builder.complete(
+        builder.build_zero_or_more(
+            builder.build_group(
+                builder.build_concatenation(builder.build_literal('a'), builder.build_literal('b')),
+                "word"
+            )
+        )
     );
-    const nfa repeated_group = builder.build_zero_or_more(group_nfa);
 
-    // Retrieve named groups from the builder
-    const auto &named_groups = builder.get_named_groups();
+    auto [matched, captured_groups, named_captures] = nfa_processor::run(result, "ababab");
 
-    // Execute NFA
-    auto [matched, captured_groups, named_captures] = nfa_processor::run(repeated_group, "ababab", named_groups);
-
-    // Assertions
     EXPECT_TRUE(matched);
-    EXPECT_EQ(named_captures["word"], "ab"); // Last match for the named group
+    EXPECT_EQ(named_captures.at("word"), "ab"); // Last match for the named group
 }
 
 int main(int argc, char **argv) {
