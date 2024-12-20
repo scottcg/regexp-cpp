@@ -6,41 +6,110 @@
 #include <string>
 
 
-// Transition object
+// Base Transition Class
 struct transition {
     std::shared_ptr<struct state> target;
+
     explicit transition(std::shared_ptr<state> t) : target(std::move(t)) {}
     virtual ~transition() = default;
 
-    virtual bool matches(char) const { return false; } // Default: No match
+    // Virtual method for matching input or checking position
+    virtual bool matches(char input, size_t pos, size_t input_size) const {
+        return false; // Default: No match
+    }
+
+    // Virtual method for getting a label for visualization
+    virtual std::string label() const {
+        return "unknown";
+    }
 };
 
+// Epsilon Transition (ε-transition)
 struct epsilon_transition : transition {
     explicit epsilon_transition(std::shared_ptr<state> t) : transition(std::move(t)) {}
-    bool matches(char) const override { return true; }
+
+    bool matches(char, size_t, size_t) const override {
+        return true; // Always matches
+    }
+
+    std::string label() const override {
+        return "ε";
+    }
 };
 
+// Literal Transition
 struct literal_transition : transition {
     char literal;
+
     literal_transition(char c, std::shared_ptr<state> t)
         : transition(std::move(t)), literal(c) {}
-    bool matches(char input) const override { return input == literal; }
+
+    bool matches(char input, size_t, size_t) const override {
+        return input == literal; // Match the specific character
+    }
+
+    std::string label() const override {
+        return std::string(1, literal);
+    }
 };
 
+// Character Class Transition
 struct character_class_transition : transition {
     std::unordered_set<char> char_set;
+
     character_class_transition(const std::unordered_set<char>& set, std::shared_ptr<state> t)
         : transition(std::move(t)), char_set(set) {}
-    bool matches(char input) const override { return char_set.count(input) > 0; }
+
+    bool matches(char input, size_t, size_t) const override {
+        return char_set.count(input) > 0;
+    }
+
+    std::string label() const override {
+        return "[class]";
+    }
 };
 
+// Negated Character Class Transition
 struct negated_class_transition : transition {
     std::unordered_set<char> char_set;
+
     negated_class_transition(const std::unordered_set<char>& set, std::shared_ptr<state> t)
         : transition(std::move(t)), char_set(set) {}
-    bool matches(char input) const override { return char_set.count(input) == 0; }
+
+    bool matches(char input, size_t, size_t) const override {
+        return char_set.count(input) == 0;
+    }
+
+    std::string label() const override {
+        return "[^class]";
+    }
 };
 
+// Start Anchor Transition (^): Match only at the start of input
+struct start_anchor_transition : transition {
+    explicit start_anchor_transition(std::shared_ptr<state> t) : transition(std::move(t)) {}
+
+    bool matches(char, size_t pos, size_t) const override {
+        return pos == 0; // Match if position is at the start of input
+    }
+
+    std::string label() const override {
+        return "^";
+    }
+};
+
+// End Anchor Transition ($): Match only at the end of input
+struct end_anchor_transition : transition {
+    explicit end_anchor_transition(std::shared_ptr<state> t) : transition(std::move(t)) {}
+
+    bool matches(char, size_t pos, size_t input_size) const override {
+        return pos == input_size; // Match if position is at the end of input
+    }
+
+    std::string label() const override {
+        return "$";
+    }
+};
 
 
 // State of an NFA
@@ -173,7 +242,7 @@ public:
     }
 
     // String-based Character Class
-    nfa add_character_class(const std::string &input) const {
+    nfa add_character_class_range(const std::string &input) const {
         const bool is_negated = input[0] == '^';
         std::unordered_set<char> char_set;
 
@@ -208,6 +277,24 @@ public:
     nfa add_non_capturing_group(const nfa &input_nfa) const {
         return input_nfa; // Simply return the input NFA without modifying group indices
     }
+
+    // Start anchor (^)
+    nfa add_start_anchor() const {
+        auto start = std::make_shared<state>();
+        auto accept = std::make_shared<state>(true);
+
+        start->transitions.emplace_back(std::make_shared<start_anchor_transition>(accept));
+        return {start, accept};
+    }
+
+    // End anchor ($)
+    nfa add_end_anchor() const {
+        auto start = std::make_shared<state>();
+        auto accept = std::make_shared<state>(true);
+
+        start->transitions.emplace_back(std::make_shared<end_anchor_transition>(accept));
+        return {start, accept};
+    }
 };
 
 // NFA Exec Result
@@ -235,18 +322,19 @@ public:
         std::vector<std::string> captured_groups(1); // Group 0: whole match
         std::stack<std::pair<size_t, int>> group_stack;
 
+        // Start the process from the initial state
         to_process.emplace(automaton.start, 0, group_stack, captured_groups);
 
         while (!to_process.empty()) {
             auto [current, pos, groups, captures] = to_process.front();
             to_process.pop();
 
-            // Skip visited state-position pairs
+            // Skip revisiting the same state-position pair
             if (!visited.insert({current, pos}).second) continue;
 
-            // Check if the input is consumed and we're at an accepting state
+            // Check for accept state and end of input
             if (current->is_accept && pos == input.size()) {
-                captures[0] = input; // Full match
+                captures[0] = input; // Full match captured
                 std::unordered_map<std::string, std::string> named_captures;
 
                 // Extract named groups
@@ -258,17 +346,17 @@ public:
                 return {true, captures, named_captures};
             }
 
-            // Process transitions
+            // Process each transition
             for (const auto &t : current->transitions) {
                 auto new_groups = groups;
                 auto new_captures = captures;
 
-                // Handle group starts
+                // Handle group start
                 if (current->group_start_index != -1) {
                     new_groups.emplace(pos, current->group_start_index);
                 }
 
-                // Handle group ends
+                // Handle group end
                 if (current->group_end_index != -1 && !new_groups.empty()) {
                     auto [start_pos, group_index] = new_groups.top();
                     new_groups.pop();
@@ -283,14 +371,26 @@ public:
                 if (auto epsilon = std::dynamic_pointer_cast<epsilon_transition>(t)) {
                     to_process.emplace(epsilon->target, pos, new_groups, new_captures);
                 }
-                // Process matching transitions
-                else if (pos < input.size() && t->matches(input[pos])) {
+                // Process start anchor transitions
+                else if (auto start_anchor = std::dynamic_pointer_cast<start_anchor_transition>(t)) {
+                    if (t->matches('\0', pos, input.size())) { // Position check only
+                        to_process.emplace(start_anchor->target, pos, new_groups, new_captures);
+                    }
+                }
+                // Process end anchor transitions
+                else if (auto end_anchor = std::dynamic_pointer_cast<end_anchor_transition>(t)) {
+                    if (t->matches('\0', pos, input.size())) { // Position check only
+                        to_process.emplace(end_anchor->target, pos, new_groups, new_captures);
+                    }
+                }
+                // Process literal and other consuming transitions
+                else if (t->matches(input[pos], pos, input.size())) {
                     to_process.emplace(t->target, pos + 1, new_groups, new_captures);
                 }
             }
         }
 
-        return {false, {}, {}}; // No match
+        return {false, {}, {}}; // No match found
     }
 
 private:
@@ -336,6 +436,10 @@ inline void visualize_nfa_dot(const nfa &nfa, std::ostream &out) {
                 label = "class";
             } else if (auto nct = std::dynamic_pointer_cast<negated_class_transition>(t)) {
                 label = "negated class";
+            } else if (auto start_anchor = std::dynamic_pointer_cast<start_anchor_transition>(t)) {
+                label = "^";
+            } else if (auto end_anchor = std::dynamic_pointer_cast<end_anchor_transition>(t)) {
+                label = "$";
             } else {
                 label = "unknown";
             }
