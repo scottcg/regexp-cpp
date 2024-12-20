@@ -8,7 +8,6 @@
 #include <sstream>
 #include <gtest/gtest.h>
 
-
 enum transition_type {
     EPSILON, // ε-transition
     LITERAL, // Single character match
@@ -87,6 +86,7 @@ public:
         return named_groups;
     }
 
+    // Complete the build process
     build_result complete(const nfa &input_nfa) {
         return {input_nfa, named_groups};
     }
@@ -220,119 +220,6 @@ struct execute_results {
 // NFA Processor
 class nfa_processor {
 public:
-    static execute_results run(const nfa &nfa, const std::string &input) {
-        std::queue<std::tuple<std::shared_ptr<state>, size_t, std::stack<std::pair<size_t, int> >, std::vector<
-            std::string> > > to_process;
-        std::unordered_set<std::pair<std::shared_ptr<state>, size_t>, pair_hash> visited;
-
-        std::vector<std::string> captured_groups(1); // Group 0 (whole match)
-        std::stack<std::pair<size_t, int> > group_stack;
-
-        to_process.emplace(nfa.start, 0, group_stack, captured_groups);
-
-        while (!to_process.empty()) {
-            auto [current, pos, groups, captures] = to_process.front();
-            to_process.pop();
-
-            if (!visited.insert({current, pos}).second) continue;
-
-            if (current->is_accept && pos == input.size()) {
-                captures[0] = input; // Full match at Group 0
-                return {true, captures, {}};
-            }
-
-            for (const auto &t: current->transitions) {
-                auto new_groups = groups;
-                auto new_captures = captures;
-
-                // Handle group metadata
-                if (current->group_start_index != -1) {
-                    new_groups.emplace(pos, current->group_start_index); // Push start position
-                }
-                if (current->group_end_index != -1 && !new_groups.empty()) {
-                    auto [start_pos, group_index] = new_groups.top();
-                    new_groups.pop();
-
-                    // Ensure sufficient space in captures
-                    if (new_captures.size() <= group_index) {
-                        new_captures.resize(group_index + 1);
-                    }
-
-                    // Overwrite the group capture
-                    new_captures[group_index] = input.substr(start_pos, pos - start_pos);
-                }
-
-                // Process transitions
-                if (t.type == EPSILON) {
-                    to_process.emplace(t.target, pos, new_groups, new_captures);
-                } else if (pos < input.size() && t.matches(input[pos])) {
-                    to_process.emplace(t.target, pos + 1, new_groups, new_captures);
-                }
-            }
-        }
-
-        return {false, {}, {}};
-    }
-
-    static execute_results run(const nfa &nfa, const std::string &input,
-                               const std::unordered_map<std::string, int> &named_groups) {
-        std::queue<std::tuple<std::shared_ptr<state>, size_t, std::stack<std::pair<size_t, int> >, std::vector<
-                    std::string> > >
-                to_process;
-        std::unordered_set<std::pair<std::shared_ptr<state>, size_t>, pair_hash> visited;
-
-        std::vector<std::string> captured_groups(1); // Group 0 (whole match)
-        std::stack<std::pair<size_t, int> > group_stack;
-
-        to_process.emplace(nfa.start, 0, group_stack, captured_groups);
-
-        while (!to_process.empty()) {
-            auto [current, pos, groups, captures] = to_process.front();
-            to_process.pop();
-
-            if (!visited.insert({current, pos}).second) continue;
-
-            if (current->is_accept && pos == input.size()) {
-                captures[0] = input;
-                std::unordered_map<std::string, std::string> named_captures;
-
-                // Populate named captures
-                for (const auto &[name, index]: named_groups) {
-                    if (index < captures.size()) {
-                        named_captures[name] = captures[index];
-                    }
-                }
-                return {true, captures, named_captures};
-            }
-
-            for (const auto &t: current->transitions) {
-                auto new_groups = groups;
-                auto new_captures = captures;
-
-                if (current->group_start_index != -1) {
-                    new_groups.emplace(pos, current->group_start_index);
-                }
-                if (current->group_end_index != -1 && !new_groups.empty()) {
-                    auto [start_pos, group_index] = new_groups.top();
-                    new_groups.pop();
-
-                    if (new_captures.size() <= group_index) {
-                        new_captures.resize(group_index + 1);
-                    }
-                    new_captures[group_index] = input.substr(start_pos, pos - start_pos);
-                }
-
-                if (t.type == EPSILON) {
-                    to_process.emplace(t.target, pos, new_groups, new_captures);
-                } else if (pos < input.size() && t.matches(input[pos])) {
-                    to_process.emplace(t.target, pos + 1, new_groups, new_captures);
-                }
-            }
-        }
-
-        return {false, {}, {}};
-    }
-
     static execute_results run(const build_result &result, const std::string &input) {
     const auto &automaton = result.automaton;
     const auto &named_groups = result.named_groups;
