@@ -15,12 +15,10 @@ struct transition {
     virtual bool matches(char) const { return false; } // Default: No match
 };
 
-
 struct epsilon_transition : transition {
     explicit epsilon_transition(std::shared_ptr<state> t) : transition(std::move(t)) {}
     bool matches(char) const override { return true; }
 };
-
 
 struct literal_transition : transition {
     char literal;
@@ -29,7 +27,6 @@ struct literal_transition : transition {
     bool matches(char input) const override { return input == literal; }
 };
 
-
 struct character_class_transition : transition {
     std::unordered_set<char> char_set;
     character_class_transition(const std::unordered_set<char>& set, std::shared_ptr<state> t)
@@ -37,13 +34,14 @@ struct character_class_transition : transition {
     bool matches(char input) const override { return char_set.count(input) > 0; }
 };
 
-
 struct negated_class_transition : transition {
     std::unordered_set<char> char_set;
     negated_class_transition(const std::unordered_set<char>& set, std::shared_ptr<state> t)
         : transition(std::move(t)), char_set(set) {}
     bool matches(char input) const override { return char_set.count(input) == 0; }
 };
+
+
 
 // State of an NFA
 struct state {
