@@ -1,52 +1,48 @@
 #pragma once
 #include <iostream>
-#include <utility>
 #include <vector>
 #include <queue>
 #include <unordered_set>
 #include <string>
-#include <memory>
-#include <sstream>
 
-enum transition_type {
-    EPSILON, // ε-transition
-    LITERAL, // Single character match
-    CHARACTER_CLASS, // Character class (e.g., [a-z])
-    NEGATED_CLASS // Negated character class (e.g., [^a-z])
-};
 
 // Transition object
 struct transition {
-    transition_type type;
     std::shared_ptr<struct state> target;
-    char literal; // For LITERAL transitions
-    std::unordered_set<char> char_set; // For CHARACTER_CLASS and NEGATED_CLASS
+    explicit transition(std::shared_ptr<state> t) : target(std::move(t)) {}
+    virtual ~transition() = default;
 
-    // Epsilon constructor
-    explicit transition(std::shared_ptr<state> target)
-        : type(EPSILON), target(std::move(target)), literal('\0') {
-    }
+    virtual bool matches(char) const { return false; } // Default: No match
+};
 
-    // Literal constructor
-    transition(char c, std::shared_ptr<state> target)
-        : type(LITERAL), target(std::move(target)), literal(c) {
-    }
 
-    // Character class constructor
-    transition(const std::unordered_set<char> &set, std::shared_ptr<state> target, bool negated = false)
-        : type(negated ? NEGATED_CLASS : CHARACTER_CLASS), target(std::move(target)), literal(0), char_set(set) {
-    }
+struct epsilon_transition : transition {
+    explicit epsilon_transition(std::shared_ptr<state> t) : transition(std::move(t)) {}
+    bool matches(char) const override { return true; }
+};
 
-    // Matches input character
-    bool matches(const char input) const {
-        switch (type) {
-            case EPSILON: return true;
-            case LITERAL: return input == literal;
-            case CHARACTER_CLASS: return char_set.count(input) > 0;
-            case NEGATED_CLASS: return char_set.count(input) == 0;
-            default: return false;
-        }
-    }
+
+struct literal_transition : transition {
+    char literal;
+    literal_transition(char c, std::shared_ptr<state> t)
+        : transition(std::move(t)), literal(c) {}
+    bool matches(char input) const override { return input == literal; }
+};
+
+
+struct character_class_transition : transition {
+    std::unordered_set<char> char_set;
+    character_class_transition(const std::unordered_set<char>& set, std::shared_ptr<state> t)
+        : transition(std::move(t)), char_set(set) {}
+    bool matches(char input) const override { return char_set.count(input) > 0; }
+};
+
+
+struct negated_class_transition : transition {
+    std::unordered_set<char> char_set;
+    negated_class_transition(const std::unordered_set<char>& set, std::shared_ptr<state> t)
+        : transition(std::move(t)), char_set(set) {}
+    bool matches(char input) const override { return char_set.count(input) == 0; }
 };
 
 // State of an NFA
@@ -56,7 +52,7 @@ struct state {
     bool is_accept = false;
     int group_start_index = -1;
     int group_end_index = -1;
-    std::vector<transition> transitions;
+    std::vector<std::shared_ptr<transition>> transitions;
 
     explicit state(bool is_accept = false) : id(next_id++), is_accept(is_accept) {
     }
@@ -87,7 +83,7 @@ public:
     }
 
     // Complete the build process
-    build_result complete(const nfa &input_nfa) {
+    build_result complete(const nfa &input_nfa) const {
         return {input_nfa, named_groups};
     }
 
@@ -95,14 +91,14 @@ public:
     nfa add_literal(char c) const {
         const auto start = std::make_shared<state>();
         auto accept = std::make_shared<state>(true);
-        start->transitions.emplace_back(c, accept);
+        start->transitions.emplace_back(std::make_shared<literal_transition>(c, accept));
         return {start, accept};
     }
 
     // Generalized Concatenation: Combine two NFAs
     nfa add_concatenation(const nfa &nfa1, const nfa &nfa2) const {
         nfa1.accept->is_accept = false; // Remove accept status from first NFA
-        nfa1.accept->transitions.emplace_back(nfa2.start); // Link first NFA to second NFA
+        nfa1.accept->transitions.emplace_back(std::make_shared<epsilon_transition>(nfa2.start));
         return {nfa1.start, nfa2.accept};
     }
 
@@ -122,12 +118,12 @@ public:
         const auto start = std::make_shared<state>();
         auto accept = std::make_shared<state>(true);
 
-        start->transitions.emplace_back(input_nfa.start); // ε-transition to input NFA
-        start->transitions.emplace_back(accept); // ε-transition to accept state
+        start->transitions.emplace_back(std::make_shared<epsilon_transition>(input_nfa.start)); // ε-transition to input NFA
+        start->transitions.emplace_back(std::make_shared<epsilon_transition>(accept)); // ε-transition to accept state
 
         input_nfa.accept->is_accept = false;
-        input_nfa.accept->transitions.emplace_back(input_nfa.start); // Loop back
-        input_nfa.accept->transitions.emplace_back(accept); // ε-transition to accept state
+        input_nfa.accept->transitions.emplace_back(std::make_shared<epsilon_transition>(input_nfa.start)); // Loop back
+        input_nfa.accept->transitions.emplace_back(std::make_shared<epsilon_transition>(accept)); // ε-transition to accept state
 
         return {start, accept};
     }
@@ -137,11 +133,11 @@ public:
         const auto start = std::make_shared<state>();
         auto accept = std::make_shared<state>(true);
 
-        start->transitions.emplace_back(input_nfa.start); // ε-transition to input NFA
+        start->transitions.emplace_back(std::make_shared<epsilon_transition>(input_nfa.start));
 
         input_nfa.accept->is_accept = false;
-        input_nfa.accept->transitions.emplace_back(input_nfa.start); // Loop back
-        input_nfa.accept->transitions.emplace_back(accept); // ε-transition to accept state
+        input_nfa.accept->transitions.emplace_back(std::make_shared<epsilon_transition>(input_nfa.start)); // Loop back
+        input_nfa.accept->transitions.emplace_back(std::make_shared<epsilon_transition>(accept));
 
         return {start, accept};
     }
@@ -156,11 +152,11 @@ public:
         const auto start = std::make_shared<state>();
         auto accept = std::make_shared<state>(true);
 
-        start->transitions.emplace_back(input_nfa.start); // ε-transition to input NFA
-        start->transitions.emplace_back(accept); // ε-transition to accept state
+        start->transitions.emplace_back(std::make_shared<epsilon_transition>(input_nfa.start)); // ε-transition to input NFA
+        start->transitions.emplace_back(std::make_shared<epsilon_transition>(accept)); // ε-transition to accept state
 
         input_nfa.accept->is_accept = false;
-        input_nfa.accept->transitions.emplace_back(accept); // ε-transition to accept state
+        input_nfa.accept->transitions.emplace_back(std::make_shared<epsilon_transition>(accept)); // ε-transition to accept state
 
         return {start, accept};
     }
@@ -169,7 +165,12 @@ public:
     nfa add_character_class(const std::unordered_set<char> &char_set, bool negated = false) const {
         const auto start = std::make_shared<state>();
         auto accept = std::make_shared<state>(true);
-        start->transitions.emplace_back(char_set, accept, negated);
+
+        if (negated) {
+            start->transitions.emplace_back(std::make_shared<negated_class_transition>(char_set, accept));
+        } else {
+            start->transitions.emplace_back(std::make_shared<character_class_transition>(char_set, accept));
+        }
         return {start, accept};
     }
 
@@ -191,6 +192,7 @@ public:
         return add_character_class(char_set, is_negated);
     }
 
+    // Add a capturing group
     nfa add_group(const nfa &input_nfa, const std::string &name = "") {
         const int group_index = group_counter++; // Assign a group number
 
@@ -220,68 +222,83 @@ struct execute_results {
 // NFA Processor
 class nfa_processor {
 public:
+    // Run NFA and return results (standard run with named groups and captures)
     static execute_results run(const build_result &result, const std::string &input) {
-    const auto &automaton = result.automaton;
-    const auto &named_groups = result.named_groups;
+        const auto &automaton = result.automaton;
+        const auto &named_groups = result.named_groups;
 
-    // Same logic as before, but using result.named_groups
-    std::queue<std::tuple<std::shared_ptr<state>, size_t, std::stack<std::pair<size_t, int>>, std::vector<std::string>>>
-        to_process;
-    std::unordered_set<std::pair<std::shared_ptr<state>, size_t>, pair_hash> visited;
+        // Processing queue: state, position, group stack, captures
+        std::queue<std::tuple<std::shared_ptr<state>, size_t, std::stack<std::pair<size_t, int>>, std::vector<std::string>>>
+            to_process;
 
-    std::vector<std::string> captured_groups(1); // Group 0 (whole match)
-    std::stack<std::pair<size_t, int>> group_stack;
+        // Visited states: avoid revisiting state-position pairs
+        std::unordered_set<std::pair<std::shared_ptr<state>, size_t>, pair_hash> visited;
 
-    to_process.emplace(automaton.start, 0, group_stack, captured_groups);
+        std::vector<std::string> captured_groups(1); // Group 0: whole match
+        std::stack<std::pair<size_t, int>> group_stack;
 
-    while (!to_process.empty()) {
-        auto [current, pos, groups, captures] = to_process.front();
-        to_process.pop();
+        to_process.emplace(automaton.start, 0, group_stack, captured_groups);
 
-        if (!visited.insert({current, pos}).second) continue;
+        while (!to_process.empty()) {
+            auto [current, pos, groups, captures] = to_process.front();
+            to_process.pop();
 
-        if (current->is_accept && pos == input.size()) {
-            captures[0] = input;
-            std::unordered_map<std::string, std::string> named_captures;
+            // Skip visited state-position pairs
+            if (!visited.insert({current, pos}).second) continue;
 
-            for (const auto &[name, index] : named_groups) {
-                if (index < captures.size()) {
-                    named_captures[name] = captures[index];
+            // Check if the input is consumed and we're at an accepting state
+            if (current->is_accept && pos == input.size()) {
+                captures[0] = input; // Full match
+                std::unordered_map<std::string, std::string> named_captures;
+
+                // Extract named groups
+                for (const auto &[name, index] : named_groups) {
+                    if (index < captures.size()) {
+                        named_captures[name] = captures[index];
+                    }
+                }
+                return {true, captures, named_captures};
+            }
+
+            // Process transitions
+            for (const auto &t : current->transitions) {
+                auto new_groups = groups;
+                auto new_captures = captures;
+
+                // Handle group starts
+                if (current->group_start_index != -1) {
+                    new_groups.emplace(pos, current->group_start_index);
+                }
+
+                // Handle group ends
+                if (current->group_end_index != -1 && !new_groups.empty()) {
+                    auto [start_pos, group_index] = new_groups.top();
+                    new_groups.pop();
+
+                    if (new_captures.size() <= group_index) {
+                        new_captures.resize(group_index + 1);
+                    }
+                    new_captures[group_index] = input.substr(start_pos, pos - start_pos);
+                }
+
+                // Process epsilon transitions
+                if (auto epsilon = std::dynamic_pointer_cast<epsilon_transition>(t)) {
+                    to_process.emplace(epsilon->target, pos, new_groups, new_captures);
+                }
+                // Process matching transitions
+                else if (pos < input.size() && t->matches(input[pos])) {
+                    to_process.emplace(t->target, pos + 1, new_groups, new_captures);
                 }
             }
-            return {true, captures, named_captures};
         }
 
-        for (const auto &t : current->transitions) {
-            auto new_groups = groups;
-            auto new_captures = captures;
-
-            if (current->group_start_index != -1) {
-                new_groups.emplace(pos, current->group_start_index);
-            }
-            if (current->group_end_index != -1 && !new_groups.empty()) {
-                auto [start_pos, group_index] = new_groups.top();
-                new_groups.pop();
-
-                if (new_captures.size() <= group_index) {
-                    new_captures.resize(group_index + 1);
-                }
-                new_captures[group_index] = input.substr(start_pos, pos - start_pos);
-            }
-
-            if (t.type == EPSILON) {
-                to_process.emplace(t.target, pos, new_groups, new_captures);
-            } else if (pos < input.size() && t.matches(input[pos])) {
-                to_process.emplace(t.target, pos + 1, new_groups, new_captures);
-            }
-        }
+        return {false, {}, {}}; // No match
     }
 
-    return {false, {}, {}};
-}
 private:
+    // Hash function for visited state-position pairs
     struct pair_hash {
-        template<class T1, class T2>
+        template <class T1, class T2>
         std::size_t operator()(const std::pair<T1, T2> &p) const {
             return std::hash<int>()(p.first->id) ^ std::hash<T2>()(p.second);
         }
@@ -289,12 +306,13 @@ private:
 };
 
 // DOT Visualization
-void visualize_nfa_dot(const nfa &nfa, std::ostream &out) {
+inline void visualize_nfa_dot(const nfa &nfa, std::ostream &out) {
     out << "digraph NFA {\n  rankdir=LR;\n  node [shape=circle];\n  start [shape=point];\n";
     out << "  start -> " << nfa.start->id << " [label=\"ε\"];\n";
 
-    std::queue<std::shared_ptr<state> > to_process;
+    std::queue<std::shared_ptr<state>> to_process;
     std::unordered_set<int> visited;
+
     to_process.push(nfa.start);
     visited.insert(nfa.start->id);
 
@@ -302,20 +320,38 @@ void visualize_nfa_dot(const nfa &nfa, std::ostream &out) {
         const auto current = to_process.front();
         to_process.pop();
 
-        if (current->is_accept) out << "  " << current->id << " [shape=doublecircle];\n";
+        // Double circle for accept states
+        if (current->is_accept) {
+            out << "  " << current->id << " [shape=doublecircle];\n";
+        }
 
-        for (const auto &t: current->transitions) {
-            std::string label = (t.type == EPSILON)
-                                    ? "ε"
-                                    : (t.type == LITERAL)
-                                          ? std::string(1, t.literal)
-                                          : "class";
-            out << "  " << current->id << " -> " << t.target->id << " [label=\"" << label << "\"];\n";
+        // Process transitions
+        for (const auto &t : current->transitions) {
+            std::string label;
 
-            if (visited.insert(t.target->id).second) {
-                to_process.push(t.target);
+            // Determine transition type and label
+            if (std::dynamic_pointer_cast<epsilon_transition>(t)) {
+                label = "ε";
+            } else if (auto lt = std::dynamic_pointer_cast<literal_transition>(t)) {
+                label = std::string(1, lt->literal);
+            } else if (auto ct = std::dynamic_pointer_cast<character_class_transition>(t)) {
+                label = "class";
+            } else if (auto nct = std::dynamic_pointer_cast<negated_class_transition>(t)) {
+                label = "negated class";
+            } else {
+                label = "unknown";
+            }
+
+            // Output edge
+            out << "  " << current->id << " -> " << t->target->id
+                << " [label=\"" << label << "\"];\n";
+
+            // Enqueue unvisited states
+            if (visited.insert(t->target->id).second) {
+                to_process.push(t->target);
             }
         }
     }
+
     out << "}\n";
 }
