@@ -49,7 +49,7 @@ struct literal_transition : transition {
     }
 
     std::string label() const override {
-        return std::string(1, literal);
+        return {1, literal};
     }
 };
 
@@ -439,14 +439,14 @@ public:
                     }
                     to_process.emplace(epsilon->target, pos, new_groups, new_captures);
                 } else if (auto start_anchor = std::dynamic_pointer_cast<start_anchor_transition>(t)) {
-                    if (t->matches('\0', pos, input.size())) {
+                    if (pos == 0) {
                         if (debug) {
                             std::cout << "Start anchor transition to state: " << start_anchor->target->id << std::endl;
                         }
                         to_process.emplace(start_anchor->target, pos, new_groups, new_captures);
                     }
                 } else if (auto end_anchor = std::dynamic_pointer_cast<end_anchor_transition>(t)) {
-                    if (t->matches('\0', pos, input.size())) {
+                    if (pos == input.size()) {
                         if (debug) {
                             std::cout << "End anchor transition to state: " << end_anchor->target->id << std::endl;
                         }
