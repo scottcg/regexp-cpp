@@ -5,7 +5,6 @@
 #include <unordered_set>
 #include <string>
 
-
 // Base Transition Class
 struct transition {
     std::shared_ptr<struct state> target;
@@ -140,7 +139,7 @@ struct build_result {
 };
 
 
-class nfa_builder {
+class builder {
     int group_counter = 1; // Start group numbering from 1
     mutable std::unordered_map<std::string, int> named_groups;
 
@@ -164,8 +163,15 @@ public:
 
     // Generalized Concatenation: Combine two NFAs
     nfa add_concatenation(const nfa &nfa1, const nfa &nfa2) const {
-        nfa1.accept->is_accept = false; // Remove accept status from first NFA
-        nfa1.accept->transitions.emplace_back(std::make_shared<epsilon_transition>(nfa2.start));
+        // Directly connect the first NFA's accept state to the second NFA's start state
+        nfa1.accept->is_accept = false; // Remove accept status from the first NFA
+        nfa1.accept->transitions.insert(
+            nfa1.accept->transitions.end(),
+            nfa2.start->transitions.begin(),
+            nfa2.start->transitions.end()
+        );
+
+        // Return the combined NFA
         return {nfa1.start, nfa2.accept};
     }
 
@@ -178,6 +184,39 @@ public:
             result = add_concatenation(result, add_literal(input[i]));
         }
         return result;
+    }
+
+    // Alternation: (a|b)
+    nfa add_alternation(const nfa &nfa1, const nfa &nfa2) const {
+        // Create new start and accept states
+        auto start = std::make_shared<state>();
+        auto accept = std::make_shared<state>(true);
+
+        // Redirect transitions to skip unnecessary intermediate steps
+        for (const auto &transition : nfa1.start->transitions) {
+            start->transitions.push_back(transition);
+        }
+        for (const auto &transition : nfa2.start->transitions) {
+            start->transitions.push_back(transition);
+        }
+
+        // Redirect the accepting states of nfa1 and nfa2
+        for (const auto &transition : nfa1.accept->transitions) {
+            accept->transitions.push_back(transition);
+        }
+        for (const auto &transition : nfa2.accept->transitions) {
+            accept->transitions.push_back(transition);
+        }
+
+        // Ensure the new states are connected to preserve alternation logic
+        nfa1.accept->is_accept = false;
+        nfa1.accept->transitions.emplace_back(std::make_shared<epsilon_transition>(accept));
+
+        nfa2.accept->is_accept = false;
+        nfa2.accept->transitions.emplace_back(std::make_shared<epsilon_transition>(accept));
+
+        // Return the optimized NFA
+        return {start, accept};
     }
 
     // Generalized Zero or More: Kleene Star
@@ -304,97 +343,105 @@ struct execute_results {
     std::unordered_map<std::string, std::string> named_groups; // Named group matches
 };
 
-// NFA Processor
 class nfa_processor {
 public:
-    // Run NFA and return results (standard run with named groups and captures)
-    static execute_results run(const build_result &result, const std::string &input) {
+    static execute_results run(const build_result &result, const std::string &input, bool debug = false) {
         const auto &automaton = result.automaton;
         const auto &named_groups = result.named_groups;
 
-        // Processing queue: state, position, group stack, captures
         std::queue<std::tuple<std::shared_ptr<state>, size_t, std::stack<std::pair<size_t, int>>, std::vector<std::string>>>
             to_process;
-
-        // Visited states: avoid revisiting state-position pairs
         std::unordered_set<std::pair<std::shared_ptr<state>, size_t>, pair_hash> visited;
 
-        std::vector<std::string> captured_groups(1); // Group 0: whole match
+        std::vector<std::string> captured_groups(1);
         std::stack<std::pair<size_t, int>> group_stack;
 
-        // Start the process from the initial state
         to_process.emplace(automaton.start, 0, group_stack, captured_groups);
 
         while (!to_process.empty()) {
             auto [current, pos, groups, captures] = to_process.front();
             to_process.pop();
 
-            // Skip revisiting the same state-position pair
-            if (!visited.insert({current, pos}).second) continue;
+            if (debug) {
+                std::cout << "Processing state: " << current->id << ", position: " << pos << std::endl;
+            }
 
-            // Check for accept state and end of input
+            if (!visited.insert({current, pos}).second) {
+                if (debug) {
+                    std::cout << "State " << current->id << " at position " << pos << " already visited, continuing." << std::endl;
+                }
+                continue;
+            }
+
             if (current->is_accept && pos == input.size()) {
-                captures[0] = input; // Full match captured
+                if (debug) {
+                    std::cout << "Accepting state " << current->id << " reached at end of input." << std::endl;
+                }
+                captures[0] = input;
                 std::unordered_map<std::string, std::string> named_captures;
 
-                // Extract named groups
                 for (const auto &[name, index] : named_groups) {
-                    if (index < captures.size()) {
+                    if (static_cast<size_t>(index) < captures.size()) {
                         named_captures[name] = captures[index];
                     }
                 }
                 return {true, captures, named_captures};
             }
 
-            // Process each transition
             for (const auto &t : current->transitions) {
                 auto new_groups = groups;
                 auto new_captures = captures;
 
-                // Handle group start
                 if (current->group_start_index != -1) {
                     new_groups.emplace(pos, current->group_start_index);
                 }
 
-                // Handle group end
                 if (current->group_end_index != -1 && !new_groups.empty()) {
                     auto [start_pos, group_index] = new_groups.top();
                     new_groups.pop();
 
-                    if (new_captures.size() <= group_index) {
+                    if (new_captures.size() <= static_cast<size_t>(group_index)) {
                         new_captures.resize(group_index + 1);
                     }
                     new_captures[group_index] = input.substr(start_pos, pos - start_pos);
                 }
 
-                // Process epsilon transitions
                 if (auto epsilon = std::dynamic_pointer_cast<epsilon_transition>(t)) {
+                    if (debug) {
+                        std::cout << "Epsilon transition to state: " << epsilon->target->id << std::endl;
+                    }
                     to_process.emplace(epsilon->target, pos, new_groups, new_captures);
-                }
-                // Process start anchor transitions
-                else if (auto start_anchor = std::dynamic_pointer_cast<start_anchor_transition>(t)) {
-                    if (t->matches('\0', pos, input.size())) { // Position check only
+                } else if (auto start_anchor = std::dynamic_pointer_cast<start_anchor_transition>(t)) {
+                    if (t->matches('\0', pos, input.size())) {
+                        if (debug) {
+                            std::cout << "Start anchor transition to state: " << start_anchor->target->id << std::endl;
+                        }
                         to_process.emplace(start_anchor->target, pos, new_groups, new_captures);
                     }
-                }
-                // Process end anchor transitions
-                else if (auto end_anchor = std::dynamic_pointer_cast<end_anchor_transition>(t)) {
-                    if (t->matches('\0', pos, input.size())) { // Position check only
+                } else if (auto end_anchor = std::dynamic_pointer_cast<end_anchor_transition>(t)) {
+                    if (t->matches('\0', pos, input.size())) {
+                        if (debug) {
+                            std::cout << "End anchor transition to state: " << end_anchor->target->id << std::endl;
+                        }
                         to_process.emplace(end_anchor->target, pos, new_groups, new_captures);
                     }
-                }
-                // Process literal and other consuming transitions
-                else if (t->matches(input[pos], pos, input.size())) {
+                } else if (t->matches(input[pos], pos, input.size())) {
+                    if (debug) {
+                        std::cout << "Transition on '" << input[pos] << "' to state: " << t->target->id
+                                  << " (type: " << typeid(*t).name() << ")" << std::endl;
+                    }
                     to_process.emplace(t->target, pos + 1, new_groups, new_captures);
                 }
             }
         }
 
-        return {false, {}, {}}; // No match found
+        if (debug) {
+            std::cout << "No match found." << std::endl;
+        }
+        return {false, {}, {}};
     }
 
 private:
-    // Hash function for visited state-position pairs
     struct pair_hash {
         template <class T1, class T2>
         std::size_t operator()(const std::pair<T1, T2> &p) const {
@@ -402,58 +449,3 @@ private:
         }
     };
 };
-
-// DOT Visualization
-inline void visualize_nfa_dot(const nfa &nfa, std::ostream &out) {
-    out << "digraph NFA {\n  rankdir=LR;\n  node [shape=circle];\n  start [shape=point];\n";
-    out << "  start -> " << nfa.start->id << " [label=\"ε\"];\n";
-
-    std::queue<std::shared_ptr<state>> to_process;
-    std::unordered_set<int> visited;
-
-    to_process.push(nfa.start);
-    visited.insert(nfa.start->id);
-
-    while (!to_process.empty()) {
-        const auto current = to_process.front();
-        to_process.pop();
-
-        // Double circle for accept states
-        if (current->is_accept) {
-            out << "  " << current->id << " [shape=doublecircle];\n";
-        }
-
-        // Process transitions
-        for (const auto &t : current->transitions) {
-            std::string label;
-
-            // Determine transition type and label
-            if (std::dynamic_pointer_cast<epsilon_transition>(t)) {
-                label = "ε";
-            } else if (auto lt = std::dynamic_pointer_cast<literal_transition>(t)) {
-                label = std::string(1, lt->literal);
-            } else if (auto ct = std::dynamic_pointer_cast<character_class_transition>(t)) {
-                label = "class";
-            } else if (auto nct = std::dynamic_pointer_cast<negated_class_transition>(t)) {
-                label = "negated class";
-            } else if (auto start_anchor = std::dynamic_pointer_cast<start_anchor_transition>(t)) {
-                label = "^";
-            } else if (auto end_anchor = std::dynamic_pointer_cast<end_anchor_transition>(t)) {
-                label = "$";
-            } else {
-                label = "unknown";
-            }
-
-            // Output edge
-            out << "  " << current->id << " -> " << t->target->id
-                << " [label=\"" << label << "\"];\n";
-
-            // Enqueue unvisited states
-            if (visited.insert(t->target->id).second) {
-                to_process.push(t->target);
-            }
-        }
-    }
-
-    out << "}\n";
-}
