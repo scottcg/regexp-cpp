@@ -2,6 +2,7 @@
 #include <iostream>
 #include <vector>
 #include <queue>
+#include <sstream>
 #include <unordered_set>
 #include <string>
 
@@ -341,8 +342,34 @@ struct execute_results {
     bool matched = false;
     std::vector<std::string> groups;
     std::unordered_map<std::string, std::string> named_groups; // Named group matches
-};
 
+    // Convert the result to a string representation
+    std::string to_string() const {
+        std::ostringstream oss;
+        oss << "Matched: " << (matched ? "true" : "false") << "\n";
+
+        if (!groups.empty()) {
+            oss << "Groups:\n";
+            for (size_t i = 0; i < groups.size(); ++i) {
+                oss << "  Group " << i << ": " << groups[i] << "\n";
+            }
+        } else {
+            oss << "No Groups:\n";
+        }
+
+        if (!named_groups.empty()) {
+            oss << "Named Groups:\n";
+            for (const auto& [name, value] : named_groups) {
+                oss << "  " << name << ": " << value << "\n";
+            }
+        }
+        else {
+            oss << "No Groups:\n";
+        }
+
+        return oss.str();
+    }
+};
 class nfa_processor {
 public:
     static execute_results run(const build_result &result, const std::string &input, bool debug = false) {
